@@ -2,10 +2,10 @@ import express from "express";
 import router from './routes/recomendacaoImovelRoutes.js';
 import cors from "cors";
 import connection from "./config/sequelize-config.js";
-// Exemplo de como importar rotas
- import healthRouter from "./routes/route.js"; 
-
+import healthRouter from "./routes/route.js";
 const app = express();
+import faqRoutes from "./routes/faqRoutes.js";
+
 
 // Middlewares
 app.use(cors()); // Habilita o CORS para todas as origens
@@ -13,6 +13,7 @@ app.use(express.json()); // Para parsear JSON
 app.use(express.urlencoded({ extended: false }));
 
 // Rotas
+app.use("/faq", faqRoutes);
 // Exemplo de como usar as rotas
 app.use("/", router, healthRouter);
 
@@ -26,7 +27,6 @@ connection
   });
 
 const PORT = process.env.PORT || 4000;
-
 app.listen(PORT, function (erro) {
   if (erro) {
     console.log("Ocorreu um erro! Erro: ", erro);
