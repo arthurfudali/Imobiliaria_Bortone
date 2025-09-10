@@ -4,7 +4,7 @@ import cors from "cors";
 import connection from "./config/sequelize-config.js";
 import agendamentoRouter from './routes/agendamentoRoute.js';
 import recomendacaoRouter from './routes/recomendacaoImovelRoutes.js';
-import healthRouter from "./routes/route.js";
+import healthRouter from "./routes/healthRouter.js";
 import faqRoutes from "./routes/faqRoutes.js";
 
 const app = express();
