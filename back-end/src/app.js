@@ -17,7 +17,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Rotas
-app.get('/', recomendacaoRouter);
+app.use('/', recomendacaoRouter);
 app.use('/agendamentos', agendamentoRouter );
 app.use('/health', healthRouter);
 app.use("/faq", faqRoutes);
