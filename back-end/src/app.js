@@ -17,8 +17,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Rotas
-app.get('/', agendamentoRouter, (req, res) => res.send('API rodando 🚀'));
-app.use('/agendamentos', );
+app.get('/', agendamentoRouter);
+app.use('/agendamentos', agendamentoRouter );
 app.use('/health', healthRouter);
 app.use("/faq", faqRoutes);
 
