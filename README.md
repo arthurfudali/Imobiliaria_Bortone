@@ -1,23 +1,30 @@
 # 🏠 Imobiliária Bortone
 
-A **Imobiliária Bortone** é uma plataforma digital desenvolvida para conectar pessoas interessados em **alugar ou comprar imóveis**.  
-O objetivo é oferecer uma experiência completa: da **busca inicial** ao **agendamento de visitas**, passando por recomendações personalizadas e gestão via **painel administrativo (CMS)**.  
+A Imobiliária Bortone é uma plataforma digital desenvolvida para conectar pessoas interessados em alugar ou comprar imóveis.
+O objetivo é oferecer uma experiência completa: da busca inicial ao agendamento de visitas, passando por recomendações personalizadas e gestão via painel administrativo (CMS).
+
+
+> Projeto acadêmico desenvolvido pelas turmas da FATEC Registro para o Laboratório de Práticas 2025-2.
 
 ---
 
-## ✨ Principais Funcionalidades
+## ✨ Funcionalidades
 
-- **Busca simples e avançada** com filtros (preço, localização, tipo de imóvel).  
-- **Vitrine de imóveis** com fotos, descrições e detalhes completos.  
-- **Login e cadastro de usuários**.  
-- **Agendamento de visitas** direto pela plataforma.  
-- **Dashboard e relatórios em PDF** para gestores.  
-- **Recomendações personalizadas** baseadas em perfil do usuário.  
-- **CMS para administradores** gerenciar imóveis, usuários, blog e anúncios.  
-- **Mapa interativo** para visualizar imóveis por região.  
-- **Notificações e simulador de financiamento/aluguel** para maior engajamento.
-- **Blog integrado** com artigos sobre mercado imobiliário e dicas para usuários.    
-- **Chat e FAQ** para suporte ao cliente.  
+- Busca simples e avançada com filtros (preço, localização, tipo).
+- Vitrine com detalhes completos e imagens.
+- Autenticação (login/cadastro) e gerenciamento via CMS.
+- Agendamento de visitas e relatórios para gestores.
+- Recomendações de imóveis por perfil e mapa interativo.
+- Blog, FAQ, chat e simulador de financiamento/aluguel.
+
+---
+
+## 🧱 Arquitetura
+
+- `back-end/`: API em Node.js/Express (regras e dados, MySQL/Sequelize).
+- `front-end/`: Next.js (UI e lógica do cliente).
+- `documentacao/`: documentação com MkDocs Material.
+- `docker-compose.yml`: orquestração local (quando aplicável).
 
 ---
 
@@ -27,7 +34,7 @@ O objetivo é oferecer uma experiência completa: da **busca inicial** ao **agen
 ![Figma](https://img.shields.io/badge/Figma-0D1117?style=for-the-badge&logo=figma)&nbsp;
 
 ### 💻 Frontend
-![Next.js](https://img.shields.io/badge/Next.js-0D1117?style=for-the-badge&logo=next.js)&nbsp; 
+![Next.js](https://img.shields.io/badge/Next.js-0D1117?style=for-the-badge&logo=next.js)&nbsp;
 ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-0D1117?style=for-the-badge&logo=tailwindcss)&nbsp;
 ![Axios](https://img.shields.io/badge/Axios-0D1117?style=for-the-badge&logo=axios)&nbsp;
 
@@ -47,18 +54,100 @@ O objetivo é oferecer uma experiência completa: da **busca inicial** ao **agen
 
 ---
 
-## 🔗 Links Úteis
+## 📦 Requisitos
 
-- <a href="https://www.figma.com/design/w1ARo0t9N2womJ0ffCi4Wt/Laborat%C3%B3rio-de-Pratica---UX?node-id=0-1&t=41vb1y7A3luaibf8-1" target="_blank" rel="noreferrer">🎨 Figma</a>  
-- <a href="https://imobiliaria-bortone.vercel.app/" target="_blank" rel="noreferrer">🌐 Site</a>  
+- Node.js LTS e npm
+- MySQL 8+
+- Docker e Docker Compose (opcional)
+
+---
+
+## ▶️ Como Executar
+
+### 1) Backend
+
+```bash
+cd back-end
+npm install
+npm run dev
+```
+
+### 2) Frontend
+
+```bash
+cd front-end
+npm install
+npm run dev
+```
+
+### 3) Via Docker (opcional)
+
+```bash
+docker compose up -d --build
+```
+
+---
+
+## 🔐 Variáveis de Ambiente (exemplos)
+
+Crie um arquivo `.env` nas pastas do `back-end/` e `front-end/` conforme necessário. Não versione segredos.
+
+Backend (exemplo):
+
+```env
+DB_HOST=localhost
+DB_USER=root
+DB_PASS=senha
+DB_NAME=imobiliaria
+JWT_SECRET=troque-este-valor
+```
+
+---
+
+## ✅ Qualidade
+
+- Commits pequenos e objetivos, em português, modo imperativo.
+- Rodar linter e testes localmente antes de abrir PR.
+- Seguir as regras em `documentacao/docs/RegrasGerais.md`.
+
+---
+
+## 🧪 Testes
+
+Backend:
+
+```bash
+cd back-end
+npm test
+```
 
 ---
 
 ## 📚 Documentação
 
- - <a href="https://github.com/laboratorio-de-praticas-2025-2/Imobiliaria_Bortone/blob/main/docs/AlgoritmoDeRecomendacao.md" target="_blank" rel="noreferrer">📖 Algoritmo de Recomendação</a>  
-- <a href="https://github.com/laboratorio-de-praticas-2025-2/Imobiliaria_Bortone/blob/main/docs/ManualdeTags.md" target="_blank" rel="noreferrer">🏷️ Manual de Tags</a>  
-- <a href="https://github.com/laboratorio-de-praticas-2025-2/Imobiliaria_Bortone/blob/main/docs/BancoDeDados.md" target="_blank" rel="noreferrer">🎲 Banco de Dados</a>  
-- <a href="https://github.com/laboratorio-de-praticas-2025-2/Imobiliaria_Bortone/blob/main/docs/RegrasGerais.md" target="_blank" rel="noreferrer">⚙️ Regras Gerais</a>  
+- Documentação local (MkDocs):
+
+```bash
+cd documentacao
+mkdocs serve
+# abra http://127.0.0.1:8000
+```
+
+Guias principais:
+
+- [Algoritmo de Recomendação](documentacao/docs/AlgoritmoDeRecomendacao.md)
+- [Manual de Tags](documentacao/docs/ManualdeTags.md)
+- [Regras Gerais](documentacao/docs/RegrasGerais.md)
 
 ---
+
+## 🔗 Links
+
+- Figma: <a href="https://www.figma.com/design/w1ARo0t9N2womJ0ffCi4Wt/Laborat%C3%B3rio-de-Pratica---UX?node-id=0-1&t=41vb1y7A3luaibf8-1" target="_blank" rel="noreferrer">protótipo</a>
+- Site: <a href="https://imobiliaria-bortone.vercel.app/" target="_blank" rel="noreferrer">produção</a>
+
+---
+
+## 📝 Licença
+
+Este projeto é distribuído sob a licença indicada no arquivo `LICENSE`.
