@@ -5,6 +5,7 @@
     100vh - 71.74px
   ); /* altura total da viewport menos a altura da navbar */
   overflow: visible; /* permite que o card flutuante apareça acima do mapa */
+  z-index: 1 !important; /* garante que o mapa fique abaixo dos controles */
 }
 .map-cms {
   position: relative;
