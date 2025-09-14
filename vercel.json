@@ -1,0 +1,10 @@
+{
+  "git": {
+    "deploymentEnabled": [
+      {
+        "branch": "gh-pages",
+        "enabled": false
+      }
+    ]
+  }
+}

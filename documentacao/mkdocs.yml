@@ -1,10 +1,28 @@
 site_name: Imobiliaria Bortone - Documentação
 
+markdown_extensions:
+  - pymdownx.details
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
+
+
 theme:
   name: material
   language: pt
   favicon: assets/favicon.ico
   logo: assets/logo.svg
+  palette:
+    - scheme: default
+      primary: custom
+      accent: indigo
+  feature:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+extra_css:
+  - stylesheets/custom.css
 
 nav:
   - Início: index.md
@@ -18,3 +36,5 @@ nav:
   - API de Mapa: api/MapaAPI.md
   - Implementação da API de Mapa: api/MapaImplementacao.md
   - Resumo da Integração: api/MapaResumo.md
+
+  
