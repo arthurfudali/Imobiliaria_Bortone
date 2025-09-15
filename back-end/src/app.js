@@ -2,12 +2,13 @@ import 'dotenv/config';
 import express from "express";
 import cors from "cors";
 import connection from "./config/sequelize-config.js";
-import agendamentoRouter from './routes/agendamentoRoute.js';
+import agendamentoRoutes from './routes/agendamentoRoute.js';
 import recomendacaoRouter from './routes/recomendacaoImovelRoutes.js';
 import healthRouter from "./routes/healthRouter.js";
 import faqRoutes from "./routes/faqRoutes.js";
 import mapaRoutes from "./routes/mapaRoutes.js";
 import dashboardRouter from "./routes/dashboardRoutes.js";
+
 
 const app = express();
 
@@ -20,7 +21,7 @@ app.use(express.urlencoded({ extended: false }));
 
 // Rotas
 app.use('/', recomendacaoRouter);
-app.use('/agendamentos', agendamentoRouter );
+app.use('/agendamentos', agendamentoRoutes );
 app.use('/health', healthRouter);
 app.use("/faq", faqRoutes);
 app.use("/mapa", mapaRoutes);
