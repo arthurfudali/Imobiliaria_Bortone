@@ -12,14 +12,18 @@ jobs:
       - name: Request API
         id: call_api
         run: |
+          # Faz o request e salva body em response.txt
           RESPONSE=$(curl -s -w " [status:%{http_code} tempo:%{time_total}s]" -o response.txt https://imobiliaria-bortone.onrender.com/health)
-          CONTENT="$(cat response.txt)$RESPONSE"
-          echo "response=$RESPONSE" >> $GITHUB_ENV
+          BODY=$(cat response.txt)
+          FULL_RESPONSE="$BODY$RESPONSE"
+
+          # Exporta para env
+          echo "response=$FULL_RESPONSE" >> $GITHUB_ENV
  
       - name: Send to Discord
         run: |
-          PAYLOAD=$( echo "$CONTENT" | jq -Rs .)
+          PAYLOAD=$(echo "${{ env.response }}" | jq -Rs .)
           curl -H "Content-Type: application/json" \
-          -X POST \
-          -d "{\"content\": $PAYLOAD}"\
-          "${{ secrets.DISCORD_WEBHOOK }}"
+               -X POST \
+               -d "{\"content\": $PAYLOAD}" \
+               "${{ secrets.DISCORD_WEBHOOK }}"
