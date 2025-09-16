@@ -12,13 +12,14 @@ jobs:
       - name: Request API
         id: call_api
         run: |
-          RESPONSE=$(curl -s https://imobiliaria-bortone.onrender.com/health)
+          RESPONSE=$(curl -s -w " [status:%{http_code} tempo:%{time_total}s]" -o response.txt https://imobiliaria-bortone.onrender.com/health)
+          CONTENT="$(cat response.txt)$RESPONSE"
           echo "response=$RESPONSE" >> $GITHUB_ENV
  
       - name: Send to Discord
         run: |
-          PAYLOAD=$( echo "${{ env.response }}" | jq -Rs .)
+          PAYLOAD=$( echo "$CONTENT" | jq -Rs .)
           curl -H "Content-Type: application/json" \
           -X POST \
           -d "{\"content\": $PAYLOAD}"\
-          ${{secrets.DISCORD_WEBHOOK}}
+          "${{ secrets.DISCORD_WEBHOOK }}"
