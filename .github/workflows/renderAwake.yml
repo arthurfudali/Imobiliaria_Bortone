@@ -17,7 +17,8 @@ jobs:
  
       - name: Send to Discord
         run: |
+          PAYLOAD=$(jq -Rs . <<< "Resposta da API: ${{ env.response}}")
           curl -H "Content-Type: application/json" \
           -X POST \
-          -d "{\"content\": \"Resposta da API: ${{ env.response}}\"}"\
+          -d "{\"content\": $PAYLOAD}"\
           ${{secrets.DISCORD_WEBHOOK}}
