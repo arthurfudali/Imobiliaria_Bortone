@@ -17,7 +17,10 @@ import HomeNavbar from "@/components/home/HomeNavbar";
 
 const { Search } = Input;
 
-const MapView = dynamic(() => import("@/components/mapa/MapView"), {
+const onSearch = (value) => console.log(value);
+
+const MapView = dynamic(() => import("@/components/mapa/MapView.client"), {
+
   ssr: false,
 });
 
