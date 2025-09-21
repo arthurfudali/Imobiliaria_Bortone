@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import publicidadeRoutes from "./routes/publicidadeRoutes.js";
 import connection from "./config/sequelize-config.js";
 import userRoutes from './routes/userRoutes.js'
 import "./models/Associations.js";
@@ -19,11 +20,11 @@ import path from "path";
 import { fileURLToPath } from "url";
 import http from "http";
 
-
 const app = express();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 
 // Middlewares
 app.use(cors()); // Habilita o CORS para todas as origens
@@ -31,7 +32,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Rotas
-
+app.use("/publicidade", publicidadeRoutes);
 app.use('/', recomendacaoRouter);
 app.use('/user', userRoutes );
 app.use("/search", searchRouter);
@@ -44,6 +45,7 @@ app.use('/imoveis', imoveisRouter);
 app.use('/imagensimoveis', imagemImovelRoutes);
 
 app.use(express.static(path.join(__dirname, "../public")));
+app.use('/images', express.static(path.join(__dirname, '../../front-end/public/images')));
 app.use(errorHandler);
 
 const server = http.createServer(app);
