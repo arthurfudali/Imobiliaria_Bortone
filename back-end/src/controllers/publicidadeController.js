@@ -5,79 +5,43 @@ export const createPublicidade = async (req, res) => {
     console.log('=== BACK-END DEBUG ===');
     console.log('req.body:', req.body);
     console.log('req.file:', req.file);
-    console.log('Environment:', process.env.VERCEL ? 'Vercel' : 'Local');
+    console.log('req.files:', req.files);
+    console.log('req.headers:', req.headers);
+    console.log('Content-Type:', req.headers['content-type']);
     console.log('======================');
     
     const { titulo, conteudo, usuario_id, ativo } = req.body;
     
-    // Validações mais rigorosas
-    if (!titulo || !titulo.trim()) {
-      return res.status(400).json({ error: "Título é obrigatório e não pode estar vazio." });
-    }
-
-    if (!conteudo || !conteudo.trim()) {
-      return res.status(400).json({ error: "Conteúdo é obrigatório e não pode estar vazio." });
-    }
-
-    if (!usuario_id) {
-      return res.status(400).json({ error: "ID do usuário é obrigatório." });
-    }
-
-    // Verificar se uma imagem foi enviada
-    if (!req.file) {
-      return res.status(400).json({ error: "Uma imagem é obrigatória para criar a publicidade." });
-    }
-    
-    // Configurar URL da imagem baseada no ambiente
-    let url_imagem;
-    const isVercel = process.env.VERCEL || process.env.VERCEL_ENV;
-    
-    if (isVercel) {
-      // No Vercel, a imagem será servida por uma API route ou serviço externo
-      // Por enquanto, vamos usar um caminho temporário que pode ser processado depois
-      url_imagem = `/api/images/publicidade/${req.file.filename}`;
-    } else {
-      // Em desenvolvimento local, usar caminho público
-      url_imagem = `/images/publicidadeImages/${req.file.filename}`;
-    }
+    // Se há arquivo enviado, usar o caminho completo
+    const url_imagem = req.file ? `/images/publicidadeImages/${req.file.filename}` : null;
     
     console.log('url_imagem calculada:', url_imagem);
-    console.log('Arquivo salvo em:', req.file.path);
 
     // Converter strings para tipos corretos
     const usuarioIdNumber = parseInt(usuario_id, 10);
     const ativoBoolean = ativo === 'true';
 
+    if (!titulo || !conteudo || !usuario_id) {
+      return res.status(400).json({ error: "Título, conteúdo e ID do usuário são obrigatórios." });
+    }
+
     if (isNaN(usuarioIdNumber) || usuarioIdNumber <= 0) {
       return res.status(400).json({ error: "ID do usuário deve ser um número inteiro positivo." });
     }
 
+    // Aqui você poderia validar se o usuário existe, mas como não temos o model Usuario importado, vamos pular essa parte nos testes mockados
+
     const novaPublicidade = await publicidadeService.createPublicidade({
-      titulo: titulo.trim(),
-      conteudo: conteudo.trim(),
+      titulo,
+      conteudo,
       url_imagem,
       usuario_id: usuarioIdNumber,
       ativo: ativoBoolean,
     });
 
-    return res.status(201).json({
-      message: "Publicidade criada com sucesso!",
-      publicidade: novaPublicidade
-    });
+    return res.status(201).json(novaPublicidade);
   } catch (error) {
     console.error("Erro ao criar publicidade:", error);
-    
-    // Tratar diferentes tipos de erro
-    if (error.name === 'MulterError') {
-      if (error.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: "Arquivo muito grande. O tamanho máximo é 5MB." });
-      }
-      if (error.code === 'LIMIT_FILE_COUNT') {
-        return res.status(400).json({ error: "Apenas uma imagem é permitida por publicidade." });
-      }
-      return res.status(400).json({ error: "Erro no upload do arquivo: " + error.message });
-    }
-    
     return res.status(500).json({ error: "Erro interno no servidor" });
   }
 };
@@ -165,17 +129,9 @@ export const updatePublicidade = async (req, res) => {
       updateData.ativo = ativoBoolean;
     }
     
-    // Se há arquivo enviado, usar o caminho completo baseado no ambiente
+    // Se há arquivo enviado, usar o caminho completo
     if (req.file) {
-      const isVercel = process.env.VERCEL || process.env.VERCEL_ENV;
-      
-      if (isVercel) {
-        updateData.url_imagem = `/api/images/publicidade/${req.file.filename}`;
-      } else {
-        updateData.url_imagem = `/images/publicidadeImages/${req.file.filename}`;
-      }
-      
-      console.log('Nova url_imagem:', updateData.url_imagem);
+      updateData.url_imagem = `/images/publicidadeImages/${req.file.filename}`;
     }
     
     console.log('updateData:', updateData);

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import PublicidadeImage from "@/components/PublicidadeImage";
+import Image from "next/image";
 import { Switch, ConfigProvider } from "antd";
 import { BiPencil } from "react-icons/bi";
 import { IoMdTrash } from "react-icons/io";
@@ -14,6 +14,27 @@ export default function Card({ item, href_cms = "banner", header = false, onDele
 
   // Debug: verificar o que está sendo passado
   console.log('Card item.url_imagem:', item.url_imagem);
+  console.log('Card item.url_imagem type:', typeof item.url_imagem);
+  console.log('Card item completo:', item);
+
+  // Função para validar e sanitizar a URL da imagem
+  const getValidImageSrc = () => {
+    if (!item.url_imagem || 
+        item.url_imagem === null || 
+        item.url_imagem === "" || 
+        item.url_imagem === "null" ||
+        typeof item.url_imagem !== 'string') {
+      return "/images/casa.png";
+    }
+    
+    // Se já começa com /, usar diretamente
+    if (item.url_imagem.startsWith('/')) {
+      return item.url_imagem;
+    }
+    
+    // Se não começa com /, adicionar o prefixo
+    return `/images/publicidadeImages/${item.url_imagem}`;
+  };
 
   const onDelete = () => {
     setIsConfirmModalVisible(true);
@@ -68,8 +89,8 @@ export default function Card({ item, href_cms = "banner", header = false, onDele
             [{item.id}] - {item.descricao || item.titulo}
           </p>
         )}
-        <PublicidadeImage
-          url_imagem={item.url_imagem}
+        <Image
+          src={getValidImageSrc()}
           alt={"Imagem do item " + item.id}
           width={425}
           height={130}
