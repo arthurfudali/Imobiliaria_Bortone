@@ -1,8 +1,8 @@
-// components/chat/ChatModal.js
 "use client";
 import { useState, useRef, useEffect } from "react";
 import ChatMessage from "./chatMessage.js";
-import { IoIosCloseCircle, IoSend } from "react-icons/io";
+import { IoIosCloseCircle } from "react-icons/io";
+import { IoSend } from "react-icons/io5";
 import { RxAvatar } from "react-icons/rx";
 import { BsEmojiSmileFill } from "react-icons/bs";
 
@@ -13,42 +13,46 @@ const getUserData = () => {
     return { token: null, info: {}, nome: "Usuário", userId: null, nivel: 1, isAgent: false };
   }
   
-  const token = localStorage.getItem("authToken");
-  const userInfoString = localStorage.getItem("userInfo") || "{}";
-  const info = JSON.parse(userInfoString);
-  
-  // Usa o operador "nullish coalescing" (??) para um fallback mais seguro
-  let nivel = info?.nivel ?? 1;
-  
-  const nivelNumerico = typeof nivel === 'string' ? parseInt(nivel, 10) : nivel;
-  const isAgent = nivelNumerico === 0;
-  
-  return {
-    token,
-    info,
-    nome: info?.nome || "Usuário",
-    userId: info?.id || null,
-    nivel: nivelNumerico,
-    isAgent
-  };
+  try {
+    const token = localStorage.getItem("authToken");
+    const userInfoString = localStorage.getItem("userInfo") || "{}";
+    const info = JSON.parse(userInfoString);
+    
+    // Usa o operador "nullish coalescing" (??) para um fallback mais seguro
+    let nivel = info?.nivel ?? 1;
+    
+    const nivelNumerico = typeof nivel === 'string' ? parseInt(nivel, 10) : nivel;
+    const isAgent = nivelNumerico === 0;
+    
+    return {
+      token,
+      info,
+      nome: info?.nome || "Usuário",
+      userId: info?.id || null,
+      nivel: nivelNumerico,
+      isAgent
+    };
+  } catch (error) {
+    console.error("Erro ao ler dados do usuário:", error);
+    return { token: null, info: {}, nome: "Usuário", userId: null, nivel: 1, isAgent: false };
+  }
 };
 
 export default function ChatModal({ onClose }) {
+  // Estados básicos
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [showEmojis, setShowEmojis] = useState(false);
   const [ws, setWs] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   
-  // LAZY INITIALIZATION: Estados inicializados com os valores corretos do localStorage
-  // A função dentro do useState só é executada UMA VEZ na criação do componente
-  const [userName, setUserName] = useState(() => getUserData().nome);
-  const [userLevel, setUserLevel] = useState(() => getUserData().nivel);
-  const [isAgent, setIsAgent] = useState(() => getUserData().isAgent);
-
+  // Estados do usuário inicializados com lazy initialization
+  const [userData, setUserData] = useState(() => getUserData());
   const [connectedUsers, setConnectedUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  
+  // Refs
   const inputRef = useRef();
   const listRef = useRef();
 
@@ -72,16 +76,18 @@ export default function ChatModal({ onClose }) {
     }
   };
 
+  // Auto scroll para as mensagens
   useEffect(() => {
     if (!listRef.current) return;
     listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [messages]);
 
+  // Atualização periódica para agentes
   useEffect(() => {
-    if (!isAgent) return;
+    if (!userData.isAgent) return;
     const interval = setInterval(() => setLastUpdate(new Date()), 60000);
     return () => clearInterval(interval);
-  }, [isAgent]);
+  }, [userData.isAgent]);
 
   // Função para selecionar usuário e solicitar histórico
   const selectUser = (userId) => {
@@ -96,10 +102,8 @@ export default function ChatModal({ onClose }) {
     }
   };
 
-  // Conexão WebSocket - SIMPLIFICADA
+  // Conexão WebSocket - corrigida para incluir dependências necessárias
   useEffect(() => {
-    const userData = getUserData();
-
     if (!userData.token || !userData.userId) {
       console.warn("⚠️ Dados de autenticação não encontrados ou inválidos.");
       setMessages([{ 
@@ -118,11 +122,11 @@ export default function ChatModal({ onClose }) {
       isAgent: userData.isAgent
     });
     
-    // A mensagem inicial agora usa o estado `isAgent` que já está correto desde a primeira renderização
+    // Mensagem inicial baseada no tipo de usuário
     const initialMessage = {
       id: 1,
       sender: "support",
-      text: isAgent
+      text: userData.isAgent
         ? "Bem-vindo ao painel de atendimento! Selecione um usuário para conversar."
         : "Olá! Como posso ajudar você hoje?",
       timestamp: new Date()
@@ -153,7 +157,7 @@ export default function ChatModal({ onClose }) {
             token: userData.token,
             userId: userData.userId,
             nome: userData.nome,
-            nivel: userData.nivel // Incluindo o nível na mensagem de conexão
+            nivel: userData.nivel
           };
           console.log("📤 Enviando mensagem de conexão:", connectMessage);
           socket.send(JSON.stringify(connectMessage));
@@ -188,13 +192,13 @@ export default function ChatModal({ onClose }) {
               });
             }
 
-            // Lista de usuários para agentes - agora usando o estado correto
+            // Lista de usuários para agentes
             if (data.type === "users" && userData.isAgent) {
               console.log("👥 Atualizando lista de usuários:", data.users);
               setConnectedUsers(data.users || []);
               setLastUpdate(new Date());
               
-              // Se não há usuário selecionado e há usuários disponíveis, selecionar o primeiro
+              // Auto-seleção do primeiro usuário se não há nenhum selecionado
               if (!selectedUser && data.users && data.users.length > 0) {
                 const firstUser = data.users[0];
                 console.log("🎯 Auto-selecionando primeiro usuário:", firstUser);
@@ -257,15 +261,16 @@ export default function ChatModal({ onClose }) {
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (socket) socket.close();
     };
-  }, []); // Array vazio - executa apenas uma vez
+    // Incluindo dependências necessárias para resolver o warning do ESLint
+  }, [userData.token, userData.userId, userData.isAgent, userData.nome, userData.nivel, selectedUser]);
 
   const handleSend = () => {
     if (!newMessage.trim() || !ws || !isConnected) return;
     
     let payload = { type: "message", text: newMessage.trim() };
     
-    // Validação corrigida para agentes
-    if (isAgent) {
+    // Validação para agentes
+    if (userData.isAgent) {
       if (!selectedUser) {
         setMessages((prev) => [...prev, { 
           id: Date.now(), 
@@ -314,11 +319,11 @@ export default function ChatModal({ onClose }) {
           <RxAvatar className="w-8 h-8 md:w-10 md:h-10" color="white" />
           <div>
             <h2 className="text-sm md:text-base text-white font-semibold">
-              {isAgent ? "Painel de Atendimento" : "Suporte Imobiliária Bortone"}
+              {userData.isAgent ? "Painel de Atendimento" : "Suporte Imobiliária Bortone"}
             </h2>
             <p className="text-xs text-white/80">
-              {isConnected ? "🟢 Online" : "🔴 Conectando..."} • {userName}
-              {isAgent && ` (Agente)`}
+              {isConnected ? "🟢 Online" : "🔴 Conectando..."} • {userData.nome}
+              {userData.isAgent && ` (Agente)`}
             </p>
           </div>
         </div>
@@ -329,8 +334,8 @@ export default function ChatModal({ onClose }) {
 
       {/* Mensagens */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Painel lateral de usuários - renderizado corretamente desde a primeira renderização */}
-        {isAgent && (
+        {/* Painel lateral de usuários para agentes */}
+        {userData.isAgent && (
           <div className="w-1/3 border-r bg-gray-100 flex flex-col">
             <div className="p-2 bg-gray-200 text-sm font-semibold text-gray-700 border-b">
               <div className="flex items-center justify-between">
@@ -385,8 +390,8 @@ export default function ChatModal({ onClose }) {
         )}
 
         {/* Área de mensagens */}
-        <div className={`flex flex-col ${isAgent ? 'flex-1' : 'w-full'}`}>
-          {isAgent && selectedUser && (
+        <div className={`flex flex-col ${userData.isAgent ? 'flex-1' : 'w-full'}`}>
+          {userData.isAgent && selectedUser && (
             <div className="p-2 bg-blue-50 text-sm text-blue-700 border-b">
               Conversando com: {connectedUsers.find(u => u.userId === selectedUser)?.nome || `Usuário ${selectedUser}`}
             </div>
@@ -401,7 +406,7 @@ export default function ChatModal({ onClose }) {
 
       {/* Input */}
       <div className="relative flex items-center border-t p-2 gap-2 bg-[#4C62AE]">
-        {isAgent && !selectedUser && (
+        {userData.isAgent && !selectedUser && (
           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
             <div className="text-white text-sm text-center">Selecione um usuário para conversar</div>
           </div>
@@ -432,15 +437,15 @@ export default function ChatModal({ onClose }) {
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          placeholder={isAgent && !selectedUser ? "Selecione um usuário..." : "Digite sua mensagem..."}
+          placeholder={userData.isAgent && !selectedUser ? "Selecione um usuário..." : "Digite sua mensagem..."}
           className="flex-1 bg-white rounded-3xl px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
-          disabled={!isConnected || (isAgent && !selectedUser)}
+          disabled={!isConnected || (userData.isAgent && !selectedUser)}
         />
         <button
           onClick={handleSend}
-          disabled={!isConnected || (isAgent && !selectedUser)}
+          disabled={!isConnected || (userData.isAgent && !selectedUser)}
           className={`flex w-10 h-10 rounded-full items-center justify-center hover:scale-110 transition ${
-            isConnected && (!isAgent || selectedUser) ? 'opacity-100' : 'opacity-50 cursor-not-allowed'
+            isConnected && (!userData.isAgent || selectedUser) ? 'opacity-100' : 'opacity-50 cursor-not-allowed'
           }`}
         >
           <IoSend color="white" className="w-6 h-6 text-white" />
