@@ -169,85 +169,119 @@ export default function ChatModal({ onClose }) {
 
         socket.onmessage = (event) => {
           try {
-            const data = JSON.parse(event.data);
-            console.log("📨 Mensagem recebida:", data);
+            const raw = event.data;
+            const data = JSON.parse(raw);
+            console.log("📨 Mensagem recebida (raw):", raw);
+            console.log("📨 Mensagem recebida (obj):", data);
 
-            if (data.type === "message") {
-              // Verificar se a mensagem tem conteúdo válido
-              if (!data.text || data.text.trim() === "") {
-                console.warn("⚠️ Mensagem recebida sem texto:", data);
+            const type = data.type || data.event || data.action;
+
+            // Normaliza um possível "payload" aninhado
+            const getPayload = (obj) => obj?.message ?? obj?.data ?? obj;
+
+            if (["message", "chatMessage", "newMessage"].includes(type)) {
+              const payload = getPayload(data);
+
+              // Extrai campos com tolerância a diferentes chaves
+              const text =
+                (payload?.text ??
+                 payload?.content ??
+                 payload?.body ??
+                 "").toString();
+
+              if (!text.trim()) {
+                console.warn("⚠️ Mensagem recebida sem texto útil:", payload);
                 return;
               }
 
-              const fromMe = data.fromUserId === userData.userId;
+              const fromId =
+                payload?.fromUserId ??
+                payload?.from ??
+                payload?.senderId ??
+                data?.fromUserId ??
+                null;
+
+              const ts = payload?.timestamp ?? data?.timestamp ?? Date.now();
+              const fromMe = fromId && fromId === userData.userId;
+
               const newMsg = createMessage(
-                data.timestamp || Date.now(),
+                ts,
                 fromMe ? "user" : "support",
-                data.text.trim(),
-                data.timestamp
+                text.trim(),
+                ts
               );
-              
-              console.log("➕ Adicionando mensagem:", newMsg);
+
+              console.log("➕ Adicionando mensagem normalizada:", newMsg);
               setMessages((prev) => [...prev, newMsg]);
             }
 
-            if (data.type === "history") {
-              console.log("📜 Processando histórico:", data);
-              const list = Array.isArray(data.messages) ? data.messages : [];
-              
-              if (list.length === 0) {
-                console.log("📜 Histórico vazio para usuário");
-                return;
-              }
+            if (["history", "messages", "chatHistory"].includes(type)) {
+              const listRaw =
+                data.messages ??
+                data.history ??
+                data.data ??
+                [];
+
+              const list = Array.isArray(listRaw) ? listRaw : [];
 
               const mapped = list
-                .filter(m => m && m.text && m.text.trim() !== "") // Filtrar mensagens vazias
+                .map((m, idx) => getPayload(m))
+                .filter((m) => {
+                  const t = (m?.text ?? m?.content ?? m?.body ?? "").toString();
+                  return t.trim() !== "";
+                })
                 .map((m, idx) => {
-                  const fromMe = m.fromUserId === userData.userId;
+                  const text =
+                    (m?.text ?? m?.content ?? m?.body ?? "").toString().trim();
+                  const fromId =
+                    m?.fromUserId ?? m?.from ?? m?.senderId ?? null;
+                  const ts = m?.timestamp ?? Date.now() + idx;
+                  const fromMe = fromId && fromId === userData.userId;
+
                   return createMessage(
-                    m.timestamp || `${Date.now()}-${idx}`,
+                    ts,
                     fromMe ? "user" : "support",
-                    m.text.trim(),
-                    m.timestamp
+                    text,
+                    ts
                   );
                 });
 
-              console.log("📜 Mensagens mapeadas do histórico:", mapped);
-              
+              console.log("📜 Histórico normalizado:", mapped);
+
               setMessages((prev) => {
-                // Manter apenas a mensagem inicial (id: 1)
-                const header = prev.filter(msg => msg.id === 1);
+                const header = prev.filter((msg) => msg.id === 1);
                 return [...header, ...mapped];
               });
             }
 
-            // Lista de usuários para agentes
-            if (data.type === "users" && userData.isAgent) {
-              console.log("👥 Atualizando lista de usuários:", data.users);
+            if (type === "users" && userData.isAgent) {
               setConnectedUsers(data.users || []);
               setLastUpdate(new Date());
-              
-              // Auto-seleção do primeiro usuário se não há nenhum selecionado
-              if (!selectedUser && data.users && data.users.length > 0) {
-                const firstUser = data.users[0];
-                console.log("🎯 Auto-selecionando primeiro usuário:", firstUser);
-                setSelectedUser(firstUser.userId);
+              if (!selectedUser && data.users?.length > 0) {
+                setSelectedUser(data.users[0].userId);
               }
             }
 
-            if (data.type === "status") {
-              if (data.msg && data.msg.trim() !== "") {
-                setMessages((prev) => [...prev, createMessage(Date.now(), "support", data.msg.trim())]);
+            if (type === "status") {
+              const msg =
+                (data.msg ?? data.message ?? "").toString().trim();
+              if (msg) {
+                setMessages((prev) => [
+                  ...prev,
+                  createMessage(Date.now(), "support", msg),
+                ]);
               }
             }
 
             if (data.error) {
-              console.error("❌ Erro do servidor:", data.error);
               const errorMsg = `Erro: ${data.error}`;
-              setMessages((prev) => [...prev, createMessage(Date.now(), "support", errorMsg)]);
+              setMessages((prev) => [
+                ...prev,
+                createMessage(Date.now(), "support", errorMsg),
+              ]);
             }
           } catch (e) {
-            console.error("❌ Falha ao processar mensagem WS:", e);
+            console.error("❌ Falha ao processar mensagem WS:", e, event.data);
           }
         };
 
@@ -411,18 +445,14 @@ export default function ChatModal({ onClose }) {
           <div ref={listRef} className="flex-1 p-3 space-y-2 overflow-y-auto bg-gray-50">
             {messages.length > 0 ? (
               messages.map((msg, idx) => {
-                // Debug: verificar se a mensagem tem dados válidos
-                if (!msg || !msg.text || msg.text.trim() === "") {
-                  console.warn("⚠️ Mensagem inválida encontrada:", msg);
-                  return null;
-                }
-                
+                if (!msg || !msg.text || msg.text.trim() === "") return null;
                 return (
-                  <ChatMessage 
-                    key={msg.id || `msg-${idx}`} 
-                    sender={msg.sender || "support"} 
-                    text={msg.text} 
+                  <ChatMessage
+                    key={msg.id || `msg-${idx}`}
+                    sender={msg.sender || "support"}
+                    text={msg.text}
                     timestamp={msg.timestamp}
+                    message={msg} // passa objeto completo como fallback
                   />
                 );
               })
