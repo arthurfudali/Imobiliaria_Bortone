@@ -49,15 +49,18 @@ export default function UploadField({
       <label className="block text-sm font-medium text-gray-700 mb-2">
         {label} <span className="text-red-500">*</span>
       </label>
-      <div className="mb-2 text-xs text-gray-500">
-        Apenas 1 imagem. Formatos: JPG, PNG, GIF. Máximo: 5MB
-      </div>
       <Upload
-        beforeUpload={beforeUpload}
+        beforeUpload={(file) => {
+          // Permitir o arquivo ser adicionado à lista, mas não fazer upload automático
+          return false;
+        }}
         fileList={fileList}
-        onChange={handleChange}
-        multiple={false}
-        accept="image/*"
+        onChange={({ fileList }) => {
+          console.log('Upload onChange - fileList:', fileList);
+          setFileList(multiple ? fileList : fileList.slice(-1));
+        }}
+        multiple={multiple}
+
         className="!w-fit"
         maxCount={1}
         showUploadList={{

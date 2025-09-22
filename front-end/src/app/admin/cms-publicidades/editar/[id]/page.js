@@ -11,7 +11,7 @@ import { UploadOutlined } from "@ant-design/icons";
 import PublicidadeImage from "@/components/PublicidadeImage";
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { message } from "antd";
+
 
 export default function EditarPublicidadePage() {
   const params = useParams(); 
@@ -32,19 +32,16 @@ export default function EditarPublicidadePage() {
 
   const loadPublicidade = async () => {
     try {
-      setIsLoading(true);
+
       const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/publicidade/${id}`);
       if (response.status === 200) {
         setPublicidade(response.data);
         setFileList([]);
         console.log('Publicidade carregada:', response.data);
       }
-    } catch (error) {
-      console.error("Erro ao carregar publicidade:", error);
-      message.error("Erro ao carregar a publicidade!");
-      router.push("/admin/cms-publicidades");
-    } finally {
-      setIsLoading(false);
+    } catch {
+      console.log("Erro ao carregar publicidade");
+
     }
   };
 
@@ -65,63 +62,54 @@ export default function EditarPublicidadePage() {
   };
 
   const onConfirm = async () => {
-    try {
-      setIsSubmitting(true);
-      
-      console.log('=== FRONT-END DEBUG ===');
-      console.log('fileList:', fileList);
-      console.log('fileList.length:', fileList.length);
-      if (fileList.length > 0) {
-        console.log('fileList[0]:', fileList[0]);
-        console.log('fileList[0].originFileObj:', fileList[0].originFileObj);
-      }
-      console.log('formValues:', formValues);
-      console.log('publicidade:', publicidade);
-      console.log('=======================');
-      
-      const formData = new FormData();
-      formData.append('titulo', formValues.titulo.trim());
-      formData.append('conteudo', formValues.conteudo.trim());
-      formData.append('usuario_id', publicidade.usuario_id.toString());
-      formData.append('ativo', publicidade.ativo.toString());
-      
-      if (fileList.length > 0 && fileList[0].originFileObj) {
-        formData.append('url_imagem', fileList[0].originFileObj);
-        console.log('Arquivo adicionado ao FormData:', fileList[0].originFileObj.name);
-      } else {
-        console.log('Nenhum arquivo novo selecionado');
-      }
+    if (formValues.titulo && formValues.conteudo) {
+      try {
+        console.log('=== FRONT-END DEBUG ===');
+        console.log('fileList:', fileList);
+        console.log('fileList.length:', fileList.length);
+        if (fileList.length > 0) {
+          console.log('fileList[0]:', fileList[0]);
+          console.log('fileList[0].originFileObj:', fileList[0].originFileObj);
+        }
+        console.log('formValues:', formValues);
+        console.log('publicidade:', publicidade);
+        console.log('=======================');
+        
+        const formData = new FormData();
+        formData.append('titulo', formValues.titulo);
+        formData.append('conteudo', formValues.conteudo);
+        formData.append('usuario_id', publicidade.usuario_id.toString());
+        formData.append('ativo', publicidade.ativo.toString());
+        
+        if (fileList.length > 0 && fileList[0].originFileObj) {
+          formData.append('url_imagem', fileList[0].originFileObj);
+          console.log('Arquivo adicionado ao FormData:', fileList[0].originFileObj.name);
+        } else {
+          console.log('Nenhum arquivo novo selecionado');
+        }
 
-      console.log('FormData entries:');
-      for (let [key, value] of formData.entries()) {
-        console.log(key, value);
-      }
+        console.log('FormData entries:');
+        for (let [key, value] of formData.entries()) {
+          console.log(key, value);
+        }
 
-      const response = await axios.put(`${process.env.NEXT_PUBLIC_API_URL}/publicidade/${id}`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      
-      if (response.status === 200) {
-        message.success("Publicidade atualizada com sucesso!");
-        setIsConfirmModalVisible(false);
-        router.push("/admin/cms-publicidades");
+        const response = await axios.put(`${process.env.NEXT_PUBLIC_API_URL}/publicidade/${id}`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        
+        if (response.status === 200) {
+          alert("Publicidade atualizada com sucesso!");
+          setIsConfirmModalVisible(false);
+          router.push("/admin/cms-publicidades");
+        }
+      } catch (error) {
+        console.log("Erro ao atualizar a publicidade:", error);
       }
-    } catch (error) {
-      console.error("Erro ao atualizar a publicidade:", error);
-      
-      // Tratamento mais específico de erros
-      if (error.response) {
-        const errorMessage = error.response.data?.error || error.response.data?.message || "Erro ao atualizar a publicidade";
-        message.error(errorMessage);
-      } else if (error.request) {
-        message.error("Erro de conexão. Verifique sua internet e tente novamente.");
-      } else {
-        message.error("Erro inesperado. Tente novamente.");
-      }
-    } finally {
-      setIsSubmitting(false);
+    } else {
+      alert("Preencha todos os campos!");
+
     }
   };
 
@@ -177,22 +165,21 @@ export default function EditarPublicidadePage() {
                 Prévia *
               </p>
               {fileList.length > 0 && fileList[0].originFileObj ? (
-                <div className="w-[100%] md:h-[25vh] h-[13vh] bg-gray-200 rounded-3xl relative">
-                  <PublicidadeImage
-                    url_imagem={URL.createObjectURL(fileList[0].originFileObj)}
+                <div className="w-[100%] md:h-[25vh] h-[13vh] bg-gray-200 rounded-3xl ">
+                  <Image
+                    src={URL.createObjectURL(fileList[0].originFileObj)}
+
                     alt="Nova imagem selecionada"
                     width={400}
                     height={320}
                     className="h-full w-full object-cover rounded-3xl"
                   />
-                  <div className="absolute top-2 right-2 bg-blue-500 text-white px-2 py-1 rounded text-xs">
-                    ✓ Nova imagem
-                  </div>
                 </div>
               ) : publicidade?.url_imagem ? (
-                <div className="w-[100%] md:h-[25vh] h-[13vh] bg-gray-200 rounded-3xl relative">
-                  <PublicidadeImage
-                    url_imagem={publicidade.url_imagem}
+                <div className="w-[100%] md:h-[25vh] h-[13vh] bg-gray-200 rounded-3xl ">
+                  <Image
+                    src={publicidade.url_imagem.startsWith('/') ? publicidade.url_imagem : `/images/publicidadeImages/${publicidade.url_imagem}`}
+
                     alt="Imagem atual"
                     width={400}
                     height={320}

@@ -7,102 +7,57 @@ import TextField from "@/components/cms/form/fields/TextField";
 import UploadField from "@/components/cms/form/fields/UploadField";
 import Sidebar from "@/components/cms/Sidebar";
 import { UploadOutlined } from "@ant-design/icons";
-import PublicidadeImage from "@/components/PublicidadeImage";
+import Image from "next/image";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { message } from "antd";
 
 export default function CriarPublicidadePage() {
   const [fileList, setFileList] = useState([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
 
   console.log('fileList atual:', fileList);
 
   const onFinish = async (values) => {
-    // Validações mais robustas
-    if (!values.titulo || !values.conteudo) {
-      message.error("Por favor, preencha todos os campos obrigatórios!");
-      return;
-    }
+    if (values.titulo && values.conteudo) {
+      try {
+        console.log('=== FRONT-END DEBUG ===');
+        console.log('values:', values);
+        console.log('fileList:', fileList);
+        console.log('fileList.length:', fileList.length);
+        if (fileList.length > 0) {
+          console.log('fileList[0]:', fileList[0]);
+          console.log('fileList[0].originFileObj:', fileList[0].originFileObj);
+        }
+        console.log('========================');
 
-    if (!values.titulo.trim()) {
-      message.error("O título não pode estar vazio!");
-      return;
-    }
+        const formData = new FormData();
+        formData.append('titulo', values.titulo);
+        formData.append('conteudo', values.conteudo);
+        formData.append('usuario_id', '1'); 
+        formData.append('ativo', 'true');
+        
+        if (fileList.length > 0 && fileList[0].originFileObj) {
+          formData.append('url_imagem', fileList[0].originFileObj);
+          console.log('Arquivo adicionado ao FormData:', fileList[0].originFileObj);
+        } else {
+          console.log('Nenhum arquivo selecionado');
+        }
 
-    if (!values.conteudo.trim()) {
-      message.error("O conteúdo não pode estar vazio!");
-      return;
-    }
-
-    // Validação final antes do envio
-    if (fileList.length === 0) {
-      message.error("Por favor, selecione uma imagem para a publicidade!");
-      return;
-    }
-
-    if (fileList.length > 1) {
-      message.error("Apenas uma imagem é permitida por publicidade!");
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-      
-      console.log('=== FRONT-END DEBUG ===');
-      console.log('values:', values);
-      console.log('fileList:', fileList);
-      console.log('fileList.length:', fileList.length);
-      if (fileList.length > 0) {
-        console.log('fileList[0]:', fileList[0]);
-        console.log('fileList[0].originFileObj:', fileList[0].originFileObj);
+        const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/publicidade`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        if (response.status === 201) {
+          alert("Publicidade cadastrada com sucesso!");
+          router.push("/admin/cms-publicidades");
+        }
+      } catch {
+        console.log("Erro ao cadastrar a publicidade");
       }
-      console.log('========================');
+    } else {
+      alert("Preencha todos os campos!");
 
-      const formData = new FormData();
-      formData.append('titulo', values.titulo.trim());
-      formData.append('conteudo', values.conteudo.trim());
-      formData.append('usuario_id', '1'); 
-      formData.append('ativo', 'true');
-      
-      if (fileList.length > 0 && fileList[0].originFileObj) {
-        formData.append('url_imagem', fileList[0].originFileObj);
-        console.log('Arquivo adicionado ao FormData:', fileList[0].originFileObj);
-      }
-
-      // Log do FormData para debug
-      for (let pair of formData.entries()) {
-        console.log('FormData entry:', pair[0], pair[1]);
-      }
-
-      const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/publicidade`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      
-      if (response.status === 201) {
-        message.success("Publicidade cadastrada com sucesso!");
-        router.push("/admin/cms-publicidades");
-      }
-    } catch (error) {
-      console.error("Erro ao cadastrar a publicidade:", error);
-      
-      // Tratamento mais específico de erros
-      if (error.response) {
-        // Erro do servidor
-        const errorMessage = error.response.data?.error || error.response.data?.message || "Erro ao cadastrar a publicidade";
-        message.error(errorMessage);
-      } else if (error.request) {
-        // Erro de rede
-        message.error("Erro de conexão. Verifique sua internet e tente novamente.");
-      } else {
-        // Outro tipo de erro
-        message.error("Erro inesperado. Tente novamente.");
-      }
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
