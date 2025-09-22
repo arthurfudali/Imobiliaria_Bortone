@@ -94,6 +94,9 @@ export default function ChatModal({ onClose }) {
     console.log("🎯 Selecionando usuário:", userId);
     setSelectedUser(userId);
     
+    // Limpar mensagens antigas exceto a inicial
+    setMessages(prev => prev.filter(msg => msg.id === 1));
+    
     // Solicitar histórico do usuário selecionado
     if (ws && isConnected) {
       const payload = { type: "getHistory", userId: userId };
@@ -102,16 +105,21 @@ export default function ChatModal({ onClose }) {
     }
   };
 
+  // Função helper para criar mensagem padronizada
+  const createMessage = (id, sender, text, timestamp = new Date()) => {
+    return {
+      id: id || Date.now(),
+      sender: sender || "support",
+      text: text || "",
+      timestamp: timestamp instanceof Date ? timestamp : new Date(timestamp)
+    };
+  };
+
   // Conexão WebSocket - corrigida para incluir dependências necessárias
   useEffect(() => {
     if (!userData.token || !userData.userId) {
       console.warn("⚠️ Dados de autenticação não encontrados ou inválidos.");
-      setMessages([{ 
-        id: Date.now(), 
-        sender: "support", 
-        text: "❌ Você precisa fazer login para usar o chat.", 
-        timestamp: new Date() 
-      }]);
+      setMessages([createMessage(1, "support", "❌ Você precisa fazer login para usar o chat.")]);
       return;
     }
 
@@ -123,15 +131,11 @@ export default function ChatModal({ onClose }) {
     });
     
     // Mensagem inicial baseada no tipo de usuário
-    const initialMessage = {
-      id: 1,
-      sender: "support",
-      text: userData.isAgent
-        ? "Bem-vindo ao painel de atendimento! Selecione um usuário para conversar."
-        : "Olá! Como posso ajudar você hoje?",
-      timestamp: new Date()
-    };
-    setMessages([initialMessage]);
+    const initialText = userData.isAgent
+      ? "Bem-vindo ao painel de atendimento! Selecione um usuário para conversar."
+      : "Olá! Como posso ajudar você hoje?";
+    
+    setMessages([createMessage(1, "support", initialText)]);
 
     let socket;
     let reconnectTimer;
@@ -169,25 +173,50 @@ export default function ChatModal({ onClose }) {
             console.log("📨 Mensagem recebida:", data);
 
             if (data.type === "message") {
+              // Verificar se a mensagem tem conteúdo válido
+              if (!data.text || data.text.trim() === "") {
+                console.warn("⚠️ Mensagem recebida sem texto:", data);
+                return;
+              }
+
               const fromMe = data.fromUserId === userData.userId;
-              setMessages((prev) => [...prev, {
-                id: data.timestamp || Date.now(),
-                sender: fromMe ? "user" : "support",
-                text: data.text,
-                timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
-              }]);
+              const newMsg = createMessage(
+                data.timestamp || Date.now(),
+                fromMe ? "user" : "support",
+                data.text.trim(),
+                data.timestamp
+              );
+              
+              console.log("➕ Adicionando mensagem:", newMsg);
+              setMessages((prev) => [...prev, newMsg]);
             }
 
             if (data.type === "history") {
+              console.log("📜 Processando histórico:", data);
               const list = Array.isArray(data.messages) ? data.messages : [];
-              const mapped = list.map((m, idx) => ({
-                id: m.timestamp || `${Date.now()}-${idx}`,
-                sender: m.fromUserId === userData.userId ? "user" : "support",
-                text: m.text,
-                timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
-              }));
+              
+              if (list.length === 0) {
+                console.log("📜 Histórico vazio para usuário");
+                return;
+              }
+
+              const mapped = list
+                .filter(m => m && m.text && m.text.trim() !== "") // Filtrar mensagens vazias
+                .map((m, idx) => {
+                  const fromMe = m.fromUserId === userData.userId;
+                  return createMessage(
+                    m.timestamp || `${Date.now()}-${idx}`,
+                    fromMe ? "user" : "support",
+                    m.text.trim(),
+                    m.timestamp
+                  );
+                });
+
+              console.log("📜 Mensagens mapeadas do histórico:", mapped);
+              
               setMessages((prev) => {
-                const header = prev.length && prev[0]?.id === 1 ? [prev[0]] : [];
+                // Manter apenas a mensagem inicial (id: 1)
+                const header = prev.filter(msg => msg.id === 1);
                 return [...header, ...mapped];
               });
             }
@@ -207,22 +236,15 @@ export default function ChatModal({ onClose }) {
             }
 
             if (data.type === "status") {
-              setMessages((prev) => [...prev, { 
-                id: Date.now(), 
-                sender: "support", 
-                text: data.msg, 
-                timestamp: new Date() 
-              }]);
+              if (data.msg && data.msg.trim() !== "") {
+                setMessages((prev) => [...prev, createMessage(Date.now(), "support", data.msg.trim())]);
+              }
             }
 
             if (data.error) {
               console.error("❌ Erro do servidor:", data.error);
-              setMessages((prev) => [...prev, { 
-                id: Date.now(), 
-                sender: "support", 
-                text: `Erro: ${data.error}`,
-                timestamp: new Date()
-              }]);
+              const errorMsg = `Erro: ${data.error}`;
+              setMessages((prev) => [...prev, createMessage(Date.now(), "support", errorMsg)]);
             }
           } catch (e) {
             console.error("❌ Falha ao processar mensagem WS:", e);
@@ -238,12 +260,7 @@ export default function ChatModal({ onClose }) {
             console.log(`🔄 Tentando reconectar em ${delay}ms`);
             reconnectTimer = setTimeout(connect, delay);
           } else {
-            setMessages((prev) => [...prev, { 
-              id: Date.now(), 
-              sender: "support", 
-              text: "❌ Não foi possível conectar ao servidor.", 
-              timestamp: new Date() 
-            }]);
+            setMessages((prev) => [...prev, createMessage(Date.now(), "support", "❌ Não foi possível conectar ao servidor.")]);
           }
         };
 
@@ -265,19 +282,15 @@ export default function ChatModal({ onClose }) {
   }, [userData.token, userData.userId, userData.isAgent, userData.nome, userData.nivel, selectedUser]);
 
   const handleSend = () => {
-    if (!newMessage.trim() || !ws || !isConnected) return;
+    const messageText = newMessage.trim();
+    if (!messageText || !ws || !isConnected) return;
     
-    let payload = { type: "message", text: newMessage.trim() };
+    let payload = { type: "message", text: messageText };
     
     // Validação para agentes
     if (userData.isAgent) {
       if (!selectedUser) {
-        setMessages((prev) => [...prev, { 
-          id: Date.now(), 
-          sender: "support", 
-          text: "⚠️ Selecione um usuário para enviar mensagem.",
-          timestamp: new Date()
-        }]);
+        setMessages((prev) => [...prev, createMessage(Date.now(), "support", "⚠️ Selecione um usuário para enviar mensagem.")]);
         return;
       }
       payload.to = selectedUser;
@@ -287,21 +300,15 @@ export default function ChatModal({ onClose }) {
     try {
       console.log("📤 Enviando payload:", payload);
       ws.send(JSON.stringify(payload));
-      setMessages((prev) => [...prev, { 
-        id: Date.now(), 
-        sender: "user", 
-        text: newMessage.trim(), 
-        timestamp: new Date() 
-      }]);
+      
+      // Adicionar mensagem enviada imediatamente
+      const sentMessage = createMessage(Date.now(), "user", messageText);
+      console.log("➕ Adicionando mensagem enviada:", sentMessage);
+      setMessages((prev) => [...prev, sentMessage]);
       setNewMessage("");
     } catch (e) {
       console.error("❌ Erro ao enviar:", e);
-      setMessages((prev) => [...prev, { 
-        id: Date.now(), 
-        sender: "support", 
-        text: "❌ Falha ao enviar. Tente novamente.",
-        timestamp: new Date()
-      }]);
+      setMessages((prev) => [...prev, createMessage(Date.now(), "support", "❌ Falha ao enviar. Tente novamente.")]);
     }
   };
 
@@ -310,6 +317,11 @@ export default function ChatModal({ onClose }) {
     setShowEmojis(false);
     inputRef.current?.focus();
   };
+  
+  // Debug: Adicionar logs para monitorar mensagens
+  useEffect(() => {
+    console.log("🔍 Estado atual das mensagens:", messages);
+  }, [messages]);
   
   return (
     <div className="fixed z-[9999] inset-0 w-full h-full rounded-none md:inset-auto md:bottom-4 md:right-4 md:w-[90%] md:max-w-sm md:h-[70vh] md:rounded-2xl bg-white shadow-lg flex flex-col overflow-hidden animate-slideUpFade">
@@ -397,9 +409,28 @@ export default function ChatModal({ onClose }) {
             </div>
           )}
           <div ref={listRef} className="flex-1 p-3 space-y-2 overflow-y-auto bg-gray-50">
-            {messages.map((msg, idx) => (
-              <ChatMessage key={msg.id || `msg-${idx}`} sender={msg.sender} text={msg.text} />
-            ))}
+            {messages.length > 0 ? (
+              messages.map((msg, idx) => {
+                // Debug: verificar se a mensagem tem dados válidos
+                if (!msg || !msg.text || msg.text.trim() === "") {
+                  console.warn("⚠️ Mensagem inválida encontrada:", msg);
+                  return null;
+                }
+                
+                return (
+                  <ChatMessage 
+                    key={msg.id || `msg-${idx}`} 
+                    sender={msg.sender || "support"} 
+                    text={msg.text} 
+                    timestamp={msg.timestamp}
+                  />
+                );
+              })
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-500">
+                Nenhuma mensagem ainda...
+              </div>
+            )}
           </div>
         </div>
       </div>
