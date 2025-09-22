@@ -14,6 +14,28 @@ export default function Card({ item, href_cms = "banner", header = false, onDele
 
   // Debug: verificar o que está sendo passado
   console.log('Card item.url_imagem:', item.url_imagem);
+  console.log('Card item.url_imagem type:', typeof item.url_imagem);
+  console.log('Card item completo:', item);
+
+  // Função para validar e sanitizar a URL da imagem
+  const getValidImageSrc = () => {
+    if (!item.url_imagem || 
+        item.url_imagem === null || 
+        item.url_imagem === "" || 
+        item.url_imagem === "null" ||
+        typeof item.url_imagem !== 'string') {
+      return "/images/casa.png";
+    }
+    
+    // Se já começa com /, usar diretamente
+    if (item.url_imagem.startsWith('/')) {
+      return item.url_imagem;
+    }
+    
+    // Se não começa com /, adicionar o prefixo
+    return `/images/publicidadeImages/${item.url_imagem}`;
+  };
+
 
   const onDelete = () => {
     setIsConfirmModalVisible(true);
@@ -21,7 +43,7 @@ export default function Card({ item, href_cms = "banner", header = false, onDele
 
   const onConfirmDelete = async () => {
     try {
-      const response = await axios.delete(`http://localhost:4000/publicidade/${item.id}`);
+      const response = await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/publicidade/${item.id}`);
       if (response.status === 204) {
         alert("Publicidade excluída com sucesso!");
         setIsConfirmModalVisible(false);
@@ -41,7 +63,7 @@ export default function Card({ item, href_cms = "banner", header = false, onDele
 
   const onChange = async (checked) => {
     try {
-      const response = await axios.put(`http://localhost:4000/publicidade/${item.id}`, { ativo: checked });
+      const response = await axios.put(`${process.env.NEXT_PUBLIC_API_URL}/publicidade/${item.id}`, { ativo: checked });
       if (response.status === 200) {
         setChecked(checked);
         if (onToggleCallback) {
@@ -68,8 +90,9 @@ export default function Card({ item, href_cms = "banner", header = false, onDele
             [{item.id}] - {item.descricao || item.titulo}
           </p>
         )}
-        <PublicidadeImage
-          url_imagem={item.url_imagem}
+        <Image
+          src={getValidImageSrc()}
+
           alt={"Imagem do item " + item.id}
           width={425}
           height={130}
