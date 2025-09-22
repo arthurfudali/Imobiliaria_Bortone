@@ -95,23 +95,106 @@ if (!process.env.JWT_SECRET) {
 
 1. **Correção Temporária Frontend:**
 ```javascript
-// Correção baseada em email para casos específicos problemáticos
+# Chat System Bug Fixes - 22/09/2025
+
+## Problemas Identificados e Corrigidos
+
+### 1. Usuário "teste" aparece como "Usuario 13"
+
+**Problema:** O nome do usuário "teste" não estava sendo exibido corretamente no chat, aparecendo como "Usuario 13" em vez do nome real.
+
+**Causa:** 
+- A lógica de fallback no `chatController.js` estava usando `Usuario ${currentId}` quando não encontrava o nome
+- A ordem de prioridade dos campos estava incorreta
+
+**Solução Aplicada:**
+```javascript
+// ANTES (chatController.js linha 49)
+const nomeUsuario = data.nome || decoded.nome || `Usuario ${currentId}`;
+
+// DEPOIS 
+const nomeUsuario = decoded.nome || data.nome || decoded.email || `Usuario ${currentId}`;
+```
+
+- Priorizar o nome do token JWT (que vem do banco de dados)
+- Adicionar email como fallback antes do ID
+- Garantir que o frontend envie o nome na conexão WebSocket
+
+### 2. Níveis de usuário invertidos (0 e 1)
+
+**Problema:** Usuários de nível 0 apareciam com interface de nível 1 e vice-versa.
+
+**Causa:** 
+- Lógica de correção excessiva no frontend tentando "corrigir" níveis baseado em emails específicos
+- Interferência desnecessária na validação dos dados do localStorage
+
+**Solução Aplicada:**
+```javascript
+// ANTES - Lógica complexa com correções forçadas
+if (info?.email === 'admin@test.com') {
+  nivel = 0; // Admin sempre nível 0
+} else if (info?.email === 'user@test.com') {
+  nivel = 1; // User sempre nível 1
+}
+
+// DEPOIS - Usar diretamente o nível do banco
 const getUserData = () => {
-  const info = JSON.parse(localStorage.getItem("userInfo") || "{}");
+  // ... 
   let nivel = info?.nivel || 1;
-  
-  // Correção para emails específicos com dados incorretos no banco
-  if (info?.email === 'admin@test.com') {
-    nivel = 0; // Forçar agente
-  } else if (info?.email === 'user@test.com') {
-    nivel = 1; // Forçar usuário
-  }
-  
-  return {
-    nivel: typeof nivel === 'string' ? parseInt(nivel, 10) : nivel,
-    isAgent: nivel === 0
-  };
-};
+  const nivelNumerico = typeof nivel === 'string' ? parseInt(nivel, 10) : nivel;
+  const isAgent = nivelNumerico === 0;
+  // ...
+}
+```
+
+- Remover correções forçadas baseadas em email
+- Confiar nos dados vindos do banco de dados via JWT
+- Simplificar a lógica de determinação de nível
+
+### 3. Melhorias na Comunicação WebSocket
+
+**Problema:** Nome do usuário não estava sendo enviado corretamente na conexão WebSocket.
+
+**Solução:**
+```javascript
+// Garantir que o nome seja sempre enviado na conexão
+socket.send(JSON.stringify({ 
+  type: "connect", 
+  token: userData.token, 
+  nome: userData.nome // ✅ Nome explícito
+}));
+```
+
+### 4. Logs de Debug Adicionados
+
+Para facilitar futuras investigações:
+```javascript
+console.log(`🔍 Conexão chat - ID: ${currentId}, Nome: "${nomeUsuario}", Nível: ${decoded.nivel}, Role: ${role}`);
+```
+
+## Scripts de Verificação Criados
+
+1. **check-users.js** - Verifica todos os usuários no banco
+2. **create-test-user.js** - Cria/corrige o usuário "teste"
+
+## Testes Recomendados
+
+1. ✅ Login com usuário nível 0 → Deve mostrar interface de agente
+2. ✅ Login com usuário nível 1 → Deve mostrar interface de usuário
+3. ✅ Usuário "teste" → Deve aparecer com nome "teste" no chat
+4. ✅ WebSocket → Nome correto deve ser exibido nas mensagens
+
+## Arquivos Modificados
+
+- `/back-end/src/controllers/chatController.js`
+- `/front-end/src/components/chat/chatModal.js`
+
+## Sistema de Níveis (Documentação)
+
+- **Nível 0**: Administradores/Agentes de suporte (interface de painel)
+- **Nível 1**: Usuários comuns (interface de chat simples)
+
+O sistema agora confia integralmente nos dados do banco de dados, sem correções forçadas.
 ```
 
 2. **Interface Condicional:**

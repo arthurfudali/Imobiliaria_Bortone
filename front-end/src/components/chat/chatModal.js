@@ -19,39 +19,31 @@ export default function ChatModal({ onClose }) {
   
   // Debug: monitora mudanças no estado isAgent
   useEffect(() => {
-    // Log para acompanhar alterações no estado isAgent
+    console.log('🔄 Estado isAgent alterado:', isAgent);
   }, [isAgent]);
 
   // Debug: monitora mudanças no userLevel
   useEffect(() => {
-    // Monitora mudanças no userLevel
+    console.log('🔄 Estado userLevel alterado:', userLevel);
   }, [userLevel]);
 
-  // VALIDAÇÃO CONTÍNUA: Garante que o estado esteja sempre correto
+  // VALIDAÇÃO SIMPLES: Sincronizar estados com localStorage
   useEffect(() => {
-    const validateUserLevel = () => {
-      const userData = getUserData();
+    const userData = getUserData();
+    
+    // Verificar se há diferença significativa
+    if (userData.nivel !== userLevel || userData.isAgent !== isAgent || userData.nome !== userName) {
+      console.log("🔧 Sincronizando estados com localStorage:", {
+        localStorage: { nivel: userData.nivel, isAgent: userData.isAgent, nome: userData.nome },
+        estado: { nivel: userLevel, isAgent: isAgent, nome: userName }
+      });
       
-      // Verificar se há inconsistência
-      if (userData.nivel !== userLevel || userData.isAgent !== isAgent) {
-        console.warn("🔧 CORREÇÃO AUTOMÁTICA - Inconsistência detectada:", {
-          esperado: { nivel: userData.nivel, isAgent: userData.isAgent },
-          atual: { nivel: userLevel, isAgent: isAgent }
-        });
-        
-        // Corrigir estados
-        setUserLevel(userData.nivel);
-        setIsAgent(userData.isAgent);
-        setUserName(userData.nome);
-      }
-    };
-
-    // Validar imediatamente e depois a cada 5 segundos
-    validateUserLevel();
-    const interval = setInterval(validateUserLevel, 5000);
-
-    return () => clearInterval(interval);
-  }, [userLevel, isAgent]); // Executar quando os estados mudarem
+      // Sincronizar estados
+      setUserLevel(userData.nivel);
+      setIsAgent(userData.isAgent);
+      setUserName(userData.nome);
+    }
+  }, [userLevel, isAgent, userName]); // Executar quando os estados mudarem
 
   const [connectedUsers, setConnectedUsers] = useState([]); // Lista de usuários para agentes
   const [selectedUser, setSelectedUser] = useState(null); // Usuário selecionado pelo agente
@@ -76,37 +68,18 @@ export default function ChatModal({ onClose }) {
     }
   };
 
-  // Helper para ler dados do usuário com correção de nível ROBUSTA
+  // Helper para ler dados do usuário
   const getUserData = () => {
     const token = localStorage.getItem("authToken");
     const userInfoString = localStorage.getItem("userInfo") || "{}";
     const info = JSON.parse(userInfoString);
     
-    // CORREÇÃO ROBUSTA: Verificar múltiplas condições
+    // Usar diretamente o nível do banco de dados
     let nivel = info?.nivel || 1;
     
-    // 1. Correção por email específico (casos conhecidos)
-    if (info?.email === 'admin@test.com') {
-      nivel = 0; // Admin sempre nível 0
-    } else if (info?.email === 'user@test.com') {
-      nivel = 1; // User sempre nível 1
-    }
-    // 2. Correção por ID (backup caso email mude)
-    else if (info?.id === 13) { // ID do admin no banco
-      nivel = 0;
-    }
-    // 3. Correção por nome (último backup)
-    else if (info?.nome?.toLowerCase().includes('admin')) {
-      nivel = 0;
-    }
-    
+    // Converter para número se for string
     const nivelNumerico = typeof nivel === 'string' ? parseInt(nivel, 10) : nivel;
     const isAgent = nivelNumerico === 0;
-    
-    // Log para debug (só quando há inconsistência)
-    if (info?.email === 'admin@test.com' && nivelNumerico !== 0) {
-      console.warn("🚨 CORREÇÃO APLICADA - Admin forçado para nível 0");
-    }
     
     return {
       token,
@@ -196,16 +169,17 @@ export default function ChatModal({ onClose }) {
             JSON.stringify({ 
               type: "connect", 
               token: userData.token, 
-              userId: userData.userId // Para agentes, precisa do userId
+              userId: userData.userId,
+              nome: userData.nome // Garantir que o nome seja enviado
             })
           );
         } else {
-          // Para usuários normais, enviar nome
+          // Para usuários normais, enviar nome explicitamente
           socket.send(
             JSON.stringify({ 
               type: "connect", 
               token: userData.token, 
-              nome: userData.nome 
+              nome: userData.nome // Garantir que o nome seja enviado
             })
           );
         }
