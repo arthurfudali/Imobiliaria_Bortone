@@ -6,10 +6,9 @@ import { IoIosCloseCircle, IoSend } from "react-icons/io";
 import { RxAvatar } from "react-icons/rx";
 import { BsEmojiSmileFill } from "react-icons/bs";
 
-// NOVO: Helper movido para fora do componente para ser usado na inicialização do estado.
-// Isso evita que a função seja recriada a cada renderização.
+// Helper movido para fora do componente para evitar recriação a cada renderização
 const getUserData = () => {
-  // Adiciona uma verificação para Server-Side Rendering (SSR) onde o localStorage não existe.
+  // Verificação para Server-Side Rendering (SSR) onde o localStorage não existe
   if (typeof window === "undefined") {
     return { token: null, info: {}, nome: "Usuário", userId: null, nivel: 1, isAgent: false };
   }
@@ -18,7 +17,7 @@ const getUserData = () => {
   const userInfoString = localStorage.getItem("userInfo") || "{}";
   const info = JSON.parse(userInfoString);
   
-  // Usa o operador "nullish coalescing" (??) para um fallback mais seguro.
+  // Usa o operador "nullish coalescing" (??) para um fallback mais seguro
   let nivel = info?.nivel ?? 1;
   
   const nivelNumerico = typeof nivel === 'string' ? parseInt(nivel, 10) : nivel;
@@ -41,8 +40,8 @@ export default function ChatModal({ onClose }) {
   const [ws, setWs] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   
-  // ALTERADO: Estados inicializados com os valores do localStorage usando "lazy initialization".
-  // A função dentro do useState só é executada UMA VEZ na criação do componente.
+  // LAZY INITIALIZATION: Estados inicializados com os valores corretos do localStorage
+  // A função dentro do useState só é executada UMA VEZ na criação do componente
   const [userName, setUserName] = useState(() => getUserData().nome);
   const [userLevel, setUserLevel] = useState(() => getUserData().nivel);
   const [isAgent, setIsAgent] = useState(() => getUserData().isAgent);
@@ -84,15 +83,31 @@ export default function ChatModal({ onClose }) {
     return () => clearInterval(interval);
   }, [isAgent]);
 
-  // Conexão WebSocket
+  // Função para selecionar usuário e solicitar histórico
+  const selectUser = (userId) => {
+    console.log("🎯 Selecionando usuário:", userId);
+    setSelectedUser(userId);
+    
+    // Solicitar histórico do usuário selecionado
+    if (ws && isConnected) {
+      const payload = { type: "getHistory", userId: userId };
+      console.log("📤 Solicitando histórico:", payload);
+      ws.send(JSON.stringify(payload));
+    }
+  };
+
+  // Conexão WebSocket - SIMPLIFICADA
   useEffect(() => {
-    // ALTERADO: O estado (isAgent, userLevel) já está correto aqui, então não precisamos mais
-    // de verificações complexas ou de chamar `setIsAgent`, etc.
     const userData = getUserData();
 
     if (!userData.token || !userData.userId) {
       console.warn("⚠️ Dados de autenticação não encontrados ou inválidos.");
-      setMessages([{ id: Date.now(), sender: "support", text: "❌ Você precisa fazer login para usar o chat.", timestamp: new Date() }]);
+      setMessages([{ 
+        id: Date.now(), 
+        sender: "support", 
+        text: "❌ Você precisa fazer login para usar o chat.", 
+        timestamp: new Date() 
+      }]);
       return;
     }
 
@@ -100,10 +115,10 @@ export default function ChatModal({ onClose }) {
       userId: userData.userId,
       nome: userData.nome,
       nivel: userData.nivel,
-      isAgent: userData.isAgent // Este valor já está correto
+      isAgent: userData.isAgent
     });
     
-    // A mensagem inicial agora usa o estado `isAgent` que já está correto na primeira renderização
+    // A mensagem inicial agora usa o estado `isAgent` que já está correto desde a primeira renderização
     const initialMessage = {
       id: 1,
       sender: "support",
@@ -137,7 +152,8 @@ export default function ChatModal({ onClose }) {
             type: "connect",
             token: userData.token,
             userId: userData.userId,
-            nome: userData.nome
+            nome: userData.nome,
+            nivel: userData.nivel // Incluindo o nível na mensagem de conexão
           };
           console.log("📤 Enviando mensagem de conexão:", connectMessage);
           socket.send(JSON.stringify(connectMessage));
@@ -146,6 +162,7 @@ export default function ChatModal({ onClose }) {
         socket.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
+            console.log("📨 Mensagem recebida:", data);
 
             if (data.type === "message") {
               const fromMe = data.fromUserId === userData.userId;
@@ -171,20 +188,40 @@ export default function ChatModal({ onClose }) {
               });
             }
 
-            if (data.type === "users" && isAgent) {
+            // Lista de usuários para agentes - agora usando o estado correto
+            if (data.type === "users" && userData.isAgent) {
+              console.log("👥 Atualizando lista de usuários:", data.users);
               setConnectedUsers(data.users || []);
               setLastUpdate(new Date());
+              
+              // Se não há usuário selecionado e há usuários disponíveis, selecionar o primeiro
+              if (!selectedUser && data.users && data.users.length > 0) {
+                const firstUser = data.users[0];
+                console.log("🎯 Auto-selecionando primeiro usuário:", firstUser);
+                setSelectedUser(firstUser.userId);
+              }
             }
 
             if (data.type === "status") {
-              setMessages((prev) => [...prev, { id: Date.now(), sender: "support", text: data.msg, timestamp: new Date() }]);
+              setMessages((prev) => [...prev, { 
+                id: Date.now(), 
+                sender: "support", 
+                text: data.msg, 
+                timestamp: new Date() 
+              }]);
             }
 
             if (data.error) {
-              setMessages((prev) => [...prev, { id: Date.now(), sender: "support", text: `Erro: ${data.error}` }]);
+              console.error("❌ Erro do servidor:", data.error);
+              setMessages((prev) => [...prev, { 
+                id: Date.now(), 
+                sender: "support", 
+                text: `Erro: ${data.error}`,
+                timestamp: new Date()
+              }]);
             }
           } catch (e) {
-            console.error("Falha ao processar mensagem WS:", e);
+            console.error("❌ Falha ao processar mensagem WS:", e);
           }
         };
 
@@ -197,7 +234,12 @@ export default function ChatModal({ onClose }) {
             console.log(`🔄 Tentando reconectar em ${delay}ms`);
             reconnectTimer = setTimeout(connect, delay);
           } else {
-            setMessages((prev) => [...prev, { id: Date.now(), sender: "support", text: "❌ Não foi possível conectar ao servidor.", timestamp: new Date() }]);
+            setMessages((prev) => [...prev, { 
+              id: Date.now(), 
+              sender: "support", 
+              text: "❌ Não foi possível conectar ao servidor.", 
+              timestamp: new Date() 
+            }]);
           }
         };
 
@@ -215,28 +257,46 @@ export default function ChatModal({ onClose }) {
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (socket) socket.close();
     };
-  }, [isAgent]); // Depender de `isAgent` pode ser útil para garantir que a lógica correta (agente/usuário) seja usada na conexão.
+  }, []); // Array vazio - executa apenas uma vez
 
   const handleSend = () => {
     if (!newMessage.trim() || !ws || !isConnected) return;
     
     let payload = { type: "message", text: newMessage.trim() };
     
+    // Validação corrigida para agentes
     if (isAgent) {
-      if (selectedUser) {
-        payload.to = selectedUser;
-      } else {
-        setMessages((prev) => [...prev, { id: Date.now(), sender: "support", text: "⚠️ Selecione um usuário para enviar mensagem." }]);
+      if (!selectedUser) {
+        setMessages((prev) => [...prev, { 
+          id: Date.now(), 
+          sender: "support", 
+          text: "⚠️ Selecione um usuário para enviar mensagem.",
+          timestamp: new Date()
+        }]);
         return;
       }
+      payload.to = selectedUser;
+      console.log("📤 AGENTE enviando para usuário:", selectedUser);
     }
     
     try {
+      console.log("📤 Enviando payload:", payload);
       ws.send(JSON.stringify(payload));
-      setMessages((prev) => [...prev, { id: Date.now(), sender: "user", text: newMessage.trim(), timestamp: new Date() }]);
+      setMessages((prev) => [...prev, { 
+        id: Date.now(), 
+        sender: "user", 
+        text: newMessage.trim(), 
+        timestamp: new Date() 
+      }]);
       setNewMessage("");
     } catch (e) {
-      setMessages((prev) => [...prev, { id: Date.now(), sender: "support", text: "Falha ao enviar. Tente novamente." }]);
+      console.error("❌ Erro ao enviar:", e);
+      setMessages((prev) => [...prev, { 
+        id: Date.now(), 
+        sender: "support", 
+        text: "❌ Falha ao enviar. Tente novamente.",
+        timestamp: new Date()
+      }]);
     }
   };
 
@@ -246,7 +306,6 @@ export default function ChatModal({ onClose }) {
     inputRef.current?.focus();
   };
   
-  // NOVO: Não precisamos mais da validação `finalIsAgent`, pois o estado `isAgent` já é confiável desde o início.
   return (
     <div className="fixed z-[9999] inset-0 w-full h-full rounded-none md:inset-auto md:bottom-4 md:right-4 md:w-[90%] md:max-w-sm md:h-[70vh] md:rounded-2xl bg-white shadow-lg flex flex-col overflow-hidden animate-slideUpFade">
       {/* Header */}
@@ -270,7 +329,7 @@ export default function ChatModal({ onClose }) {
 
       {/* Mensagens */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Painel lateral de usuários - renderizado corretamente desde o início */}
+        {/* Painel lateral de usuários - renderizado corretamente desde a primeira renderização */}
         {isAgent && (
           <div className="w-1/3 border-r bg-gray-100 flex flex-col">
             <div className="p-2 bg-gray-200 text-sm font-semibold text-gray-700 border-b">
@@ -287,15 +346,23 @@ export default function ChatModal({ onClose }) {
             <div className="flex-1 overflow-y-auto">
               {connectedUsers.length > 0 ? (
                 connectedUsers.map((user) => (
-                  <div key={user.userId} onClick={() => setSelectedUser(user.userId)} className={`p-3 border-b cursor-pointer hover:bg-gray-200 transition-colors ${selectedUser === user.userId ? 'bg-blue-100 border-blue-300' : ''}`}>
+                  <div 
+                    key={user.userId} 
+                    onClick={() => selectUser(user.userId)} 
+                    className={`p-3 border-b cursor-pointer hover:bg-gray-200 transition-colors ${
+                      selectedUser === user.userId ? 'bg-blue-100 border-blue-300' : ''
+                    }`}
+                  >
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="text-sm font-medium text-gray-800 flex items-center">
-                          🟢 {user.nome}
+                          🟢 {user.nome || `Usuário ${user.userId}`}
                         </div>
                         <div className="text-xs text-gray-500">ID: {user.userId}</div>
                       </div>
-                      {selectedUser === user.userId && <div className="text-blue-500 text-xs">💬 Ativo</div>}
+                      {selectedUser === user.userId && (
+                        <div className="text-blue-500 text-xs">💬 Ativo</div>
+                      )}
                     </div>
                   </div>
                 ))
@@ -308,7 +375,11 @@ export default function ChatModal({ onClose }) {
               )}
             </div>
             <div className="p-2 bg-gray-50 border-t text-xs text-gray-500 text-center">
-              {isConnected ? <span className="text-green-600">🟢 Painel Ativo</span> : <span className="text-red-600">🔴 Reconectando...</span>}
+              {isConnected ? (
+                <span className="text-green-600">🟢 Painel Ativo</span>
+              ) : (
+                <span className="text-red-600">🔴 Reconectando...</span>
+              )}
             </div>
           </div>
         )}
@@ -336,11 +407,19 @@ export default function ChatModal({ onClose }) {
           </div>
         )}
         <div className="relative">
-          <BsEmojiSmileFill className="w-8 h-8 cursor-pointer hover:scale-110 transition" color="white" onClick={() => setShowEmojis(!showEmojis)} />
+          <BsEmojiSmileFill 
+            className="w-8 h-8 cursor-pointer hover:scale-110 transition" 
+            color="white" 
+            onClick={() => setShowEmojis(!showEmojis)} 
+          />
           {showEmojis && (
             <div className="absolute bottom-10 left-0 w-48 bg-white rounded-lg shadow-lg p-2 flex flex-wrap gap-2 z-50 animate-emojiOpen">
               {["😀", "😂", "😍", "👍", "🔥", "🎉", "🙌", "🤔", "😢", "👏"].map((emoji) => (
-                <button key={emoji} onClick={() => addEmoji(emoji)} className="text-xl hover:scale-125 transition">
+                <button 
+                  key={emoji} 
+                  onClick={() => addEmoji(emoji)} 
+                  className="text-xl hover:scale-125 transition"
+                >
                   {emoji}
                 </button>
               ))}
@@ -360,7 +439,9 @@ export default function ChatModal({ onClose }) {
         <button
           onClick={handleSend}
           disabled={!isConnected || (isAgent && !selectedUser)}
-          className={`flex w-10 h-10 rounded-full items-center justify-center hover:scale-110 transition ${isConnected && (!isAgent || selectedUser) ? 'opacity-100' : 'opacity-50 cursor-not-allowed'}`}
+          className={`flex w-10 h-10 rounded-full items-center justify-center hover:scale-110 transition ${
+            isConnected && (!isAgent || selectedUser) ? 'opacity-100' : 'opacity-50 cursor-not-allowed'
+          }`}
         >
           <IoSend color="white" className="w-6 h-6 text-white" />
         </button>
