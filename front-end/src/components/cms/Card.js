@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import PublicidadeImage from "@/components/PublicidadeImage";
+import Image from "next/image";
 import { Switch, ConfigProvider } from "antd";
 import { BiPencil } from "react-icons/bi";
 import { IoMdTrash } from "react-icons/io";
@@ -35,7 +35,6 @@ export default function Card({ item, href_cms = "banner", header = false, onDele
     // Se não começa com /, adicionar o prefixo
     return `/images/publicidadeImages/${item.url_imagem}`;
   };
-
 
   const onDelete = () => {
     setIsConfirmModalVisible(true);
@@ -92,7 +91,6 @@ export default function Card({ item, href_cms = "banner", header = false, onDele
         )}
         <Image
           src={getValidImageSrc()}
-
           alt={"Imagem do item " + item.id}
           width={425}
           height={130}
