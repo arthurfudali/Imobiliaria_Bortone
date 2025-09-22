@@ -54,16 +54,53 @@ export default function ChatModal({ onClose }) {
   // Helper para montar URL do WS a partir da URL da API
   const getWebSocketUrl = () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+      // 1. Primeiro, tentar usar a variável de ambiente
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      
       if (apiUrl) {
-        // Substitui http/https por ws/wss
+        console.log("🔧 Usando NEXT_PUBLIC_API_URL:", apiUrl);
         return apiUrl.replace(/^http/, "ws");
       }
-      // Fallback local
-      const proto = typeof window !== "undefined" && window.location?.protocol === "https:" ? "wss" : "ws";
-      const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
-      return `${proto}://${host}:4000`;
-    } catch {
+      
+      // 2. Fallback baseado no ambiente atual
+      if (typeof window !== "undefined") {
+        const { protocol, hostname, port } = window.location;
+        const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
+        
+        console.log("🔧 Detectando ambiente:", { protocol, hostname, port });
+        
+        // Em desenvolvimento local
+        if (hostname === "localhost" || hostname === "127.0.0.1") {
+          const wsUrl = `${wsProtocol}//${hostname}:4000`;
+          console.log("🏠 Ambiente local detectado:", wsUrl);
+          return wsUrl;
+        }
+        
+        // Em produção Vercel (frontend) - backend no Render
+        if (hostname.includes('.vercel.app')) {
+          const wsUrl = "wss://imobiliaria-bortone.onrender.com";
+          console.log("🚀 Vercel detectado, usando backend Render:", wsUrl);
+          return wsUrl;
+        }
+        
+        // Em produção Render (fullstack)
+        if (hostname.includes('.onrender.com')) {
+          const wsUrl = `${wsProtocol}//${hostname}`;
+          console.log("☁️ Render detectado:", wsUrl);
+          return wsUrl;
+        }
+        
+        // Fallback geral para outros ambientes de produção
+        const wsUrl = `${wsProtocol}//${hostname}${port ? `:${port}` : ""}`;
+        console.log("🌐 Ambiente genérico:", wsUrl);
+        return wsUrl;
+      }
+      
+      // Fallback final
+      console.log("⚠️ Usando fallback localhost");
+      return "ws://localhost:4000";
+    } catch (error) {
+      console.error("❌ Erro ao construir URL do WebSocket:", error);
       return "ws://localhost:4000";
     }
   };
@@ -115,11 +152,39 @@ export default function ChatModal({ onClose }) {
     const token = localStorage.getItem("authToken");
     
     if (!userInfoString || !token) {
+      console.warn("⚠️ Dados de autenticação não encontrados no localStorage");
+      setMessages([{
+        id: Date.now(),
+        sender: "support",
+        text: "❌ Você precisa fazer login para usar o chat.",
+        timestamp: new Date(),
+      }]);
       return;
     }
     
     // Usar função isolada para evitar conflitos
     const userData = getUserData();
+    
+    if (!userData.token || !userData.userId) {
+      console.warn("⚠️ Token ou userId inválidos:", { 
+        hasToken: !!userData.token, 
+        hasUserId: !!userData.userId 
+      });
+      setMessages([{
+        id: Date.now(),
+        sender: "support",
+        text: "❌ Dados de autenticação inválidos. Faça login novamente.",
+        timestamp: new Date(),
+      }]);
+      return;
+    }
+
+    console.log("✅ Dados de usuário válidos encontrados:", {
+      userId: userData.userId,
+      nome: userData.nome,
+      nivel: userData.nivel,
+      isAgent: userData.isAgent
+    });
 
     // Atualizar estados UMA ÚNICA VEZ
     setUserName(userData.nome);
@@ -138,52 +203,54 @@ export default function ChatModal({ onClose }) {
     
     setMessages([initialMessage]);
 
-    if (!userData.token || !userData.userId) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now(),
-          sender: "support",
-          text: "❌ Você precisa fazer login para usar o chat.",
-          timestamp: new Date(),
-        },
-      ]);
-      return;
-    }
-
     let socket;
     let reconnectTimer;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+    
     const connect = () => {
       const baseWsUrl = getWebSocketUrl();
       const wsUrl = `${baseWsUrl}?token=${userData.token}`;
-      socket = new WebSocket(wsUrl);
-      setWs(socket);
+      
+      console.log("🔌 Tentando conectar WebSocket:", {
+        attempt: reconnectAttempts + 1,
+        maxAttempts: maxReconnectAttempts,
+        baseUrl: baseWsUrl,
+        fullUrl: wsUrl,
+        userId: userData.userId,
+        nome: userData.nome,
+        nivel: userData.nivel
+      });
+      
+      try {
+        socket = new WebSocket(wsUrl);
+        setWs(socket);
 
-      socket.onopen = () => {
-        setIsConnected(true);
-        
-        // Envia mensagem de conexão diferente para agentes e usuários
-        if (userData.nivel === 0) {
-          // Para agentes, enviar userId no campo userId
-          socket.send(
-            JSON.stringify({ 
-              type: "connect", 
-              token: userData.token, 
-              userId: userData.userId,
-              nome: userData.nome // Garantir que o nome seja enviado
-            })
-          );
-        } else {
-          // Para usuários normais, enviar nome explicitamente
-          socket.send(
-            JSON.stringify({ 
-              type: "connect", 
-              token: userData.token, 
-              nome: userData.nome // Garantir que o nome seja enviado
-            })
-          );
-        }
-      };
+        socket.onopen = () => {
+          console.log("✅ WebSocket conectado com sucesso");
+          setIsConnected(true);
+          reconnectAttempts = 0; // Reset counter on successful connection
+          
+          // Limpar mensagens de erro anteriores
+          setMessages((prev) => prev.filter(msg => !msg.text.includes("Erro de conexão")));
+          
+          // Envia mensagem de conexão diferente para agentes e usuários
+          const connectMessage = userData.nivel === 0 
+            ? {
+                type: "connect", 
+                token: userData.token, 
+                userId: userData.userId,
+                nome: userData.nome
+              }
+            : {
+                type: "connect", 
+                token: userData.token, 
+                nome: userData.nome
+              };
+              
+          console.log("📤 Enviando mensagem de conexão:", connectMessage);
+          socket.send(JSON.stringify(connectMessage));
+        };
 
       socket.onmessage = (event) => {
         try {
@@ -281,15 +348,69 @@ export default function ChatModal({ onClose }) {
         }
       };
 
-      socket.onclose = () => {
+      socket.onclose = (event) => {
+        console.log("❌ WebSocket fechado:", {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+          attempt: reconnectAttempts + 1
+        });
         setIsConnected(false);
-        // Reconnect simples após breve atraso
-        reconnectTimer = setTimeout(() => connect(), 2000);
+        
+        // Só tentar reconectar se não excedeu o limite
+        if (reconnectAttempts < maxReconnectAttempts) {
+          reconnectAttempts++;
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000); // Backoff exponencial, máximo 10s
+          
+          console.log(`🔄 Tentando reconectar em ${delay}ms (tentativa ${reconnectAttempts}/${maxReconnectAttempts})`);
+          
+          reconnectTimer = setTimeout(() => {
+            connect();
+          }, delay);
+        } else {
+          console.error("❌ Máximo de tentativas de reconexão excedido");
+          setMessages((prev) => [
+            ...prev,
+            { 
+              id: Date.now(), 
+              sender: "support", 
+              text: "❌ Não foi possível conectar ao servidor. Verifique sua conexão.",
+              timestamp: new Date()
+            },
+          ]);
+        }
       };
 
-      socket.onerror = () => {
+      socket.onerror = (error) => {
+        console.error("🚨 Erro no WebSocket:", error);
         setIsConnected(false);
+        
+        // Mostrar erro apenas se não for um erro de reconexão
+        if (reconnectAttempts === 0) {
+          setMessages((prev) => [
+            ...prev,
+            { 
+              id: Date.now(), 
+              sender: "support", 
+              text: "❌ Erro de conexão. Tentando reconectar...",
+              timestamp: new Date()
+            },
+          ]);
+        }
       };
+      } catch (connectionError) {
+        console.error("❌ Erro ao criar WebSocket:", connectionError);
+        setIsConnected(false);
+        setMessages((prev) => [
+          ...prev,
+          { 
+            id: Date.now(), 
+            sender: "support", 
+            text: `❌ Erro ao conectar: ${connectionError.message}`,
+            timestamp: new Date()
+          },
+        ]);
+      }
     };
 
     connect();
