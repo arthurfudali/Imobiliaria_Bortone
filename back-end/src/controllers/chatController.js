@@ -46,7 +46,17 @@ export function handleConnection(ws) {
         
         role = roleMap[decoded.nivel];
         currentId = decoded.id;
-        const nomeUsuario = data.nome || decoded.nome || `Usuario ${currentId}`;
+        
+        // Priorizar nome do token, depois o nome enviado pelo cliente
+        const nomeUsuario = decoded.nome || data.nome || decoded.email || `Usuario ${currentId}`;
+        
+        // Log detalhado para debug
+        console.log(`🔍 Conexão chat - ID: ${currentId}, Nome: "${nomeUsuario}", Nível: ${decoded.nivel}, Role: ${role}`, {
+          tokenNome: decoded.nome,
+          dataNome: data.nome,
+          email: decoded.email,
+          nomeEscolhido: nomeUsuario
+        });
 
         // Usuário
         if (role === "user") {
