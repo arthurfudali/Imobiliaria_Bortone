@@ -24,6 +24,14 @@ export function handleConnection(ws) {
         return;
       }
 
+      // Se por algum motivo a primeira mensagem não for 'connect', tentar inferir role/id do ws.userData para evitar condição de corrida
+      if (!role && ws.userData) {
+        const decoded = ws.userData;
+        const roleMap = { 0: "agent", 1: "user" };
+        role = roleMap[decoded.nivel];
+        currentId = decoded.id;
+      }
+
       // Conexão inicial
       if (data.type === "connect") {
         let decoded;
@@ -153,7 +161,8 @@ export function handleConnection(ws) {
 
         // Atendente
         else if (role === "agent") {
-          currentId = data.userId;
+          // Para agentes, usar SEMPRE o id do token para registrar o socket
+          currentId = decoded.id;
           chatService.agents[currentId] = ws;
 
           chatService.send(ws, {
@@ -175,7 +184,7 @@ export function handleConnection(ws) {
       }
 
       // Mensagens
-      if (data.type === "message") {
+  if (data.type === "message") {
         //Garantir que a mensagem é uma string e não vazia
         if (typeof data.text !== "string" || data.text.trim() === "") {
           chatService.send(ws, { type: "error", msg: "Mensagem Inválida." });
@@ -236,13 +245,15 @@ export function handleConnection(ws) {
             });
           }
 
-          // Enviar para agentes também
+          // Enviar para agentes também (normalizado com campos no topo)
           chatService.broadcastAgents({
             type: "message",
             userId: currentId,
             fromUserId: currentId,
             nome: nomeUsuario,
             msg: newMsg,
+            text: newMsg.text,
+            timestamp: newMsg.timestamp,
           });
         }
 
@@ -258,6 +269,7 @@ export function handleConnection(ws) {
 
           newMsg = { 
             userId: currentId, 
+            fromUserId: currentId,
             nome: "Atendente", 
             text: data.text,
             timestamp: new Date().toISOString()
@@ -270,6 +282,10 @@ export function handleConnection(ws) {
           chatService.send(chatService.users[targetUser].ws, {
             type: "message",
             msg: newMsg,
+            text: newMsg.text,
+            fromUserId: currentId,
+            userId: targetUser,
+            timestamp: newMsg.timestamp,
           });
           
           // Broadcast para demais atendentes, EXCLUINDO o remetente para evitar duplicação
@@ -279,10 +295,35 @@ export function handleConnection(ws) {
               userId: targetUser,
               nome: chatService.users[targetUser].nome,
               msg: newMsg,
+              text: newMsg.text,
+              fromUserId: currentId,
+              timestamp: newMsg.timestamp,
             },
             { excludeAgentId: currentId.toString() }
           );
         }
+      }
+
+      // Solicitação explícita de histórico (suportar front ao selecionar usuário)
+      if (data.type === "getHistory") {
+        // Apenas agentes devem solicitar histórico de um usuário específico
+        if (role !== "agent") {
+          chatService.send(ws, { type: "error", msg: "Apenas agentes podem solicitar histórico." });
+          return;
+        }
+
+        const userId = data.userId;
+        if (!userId) {
+          chatService.send(ws, { type: "error", msg: "Parâmetro userId é obrigatório." });
+          return;
+        }
+
+        const messages = chatService.history[userId] || [];
+        chatService.send(ws, {
+          type: "history",
+          userId,
+          messages,
+        });
       }
 
       // Encerrar chat
