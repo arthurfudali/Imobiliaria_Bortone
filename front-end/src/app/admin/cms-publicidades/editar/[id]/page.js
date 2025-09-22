@@ -7,11 +7,11 @@ import TextAreaField from "@/components/cms/form/fields/TextAreaField";
 import TextField from "@/components/cms/form/fields/TextField";
 import UploadField from "@/components/cms/form/fields/UploadField";
 import Sidebar from "@/components/cms/Sidebar";
+import {  Form as FormAntd } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
-import PublicidadeImage from "@/components/PublicidadeImage";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import axios from "axios";
-
 
 export default function EditarPublicidadePage() {
   const params = useParams(); 
@@ -21,8 +21,6 @@ export default function EditarPublicidadePage() {
   const [publicidade, setPublicidade] = useState(null);
   const [isConfirmModalVisible, setIsConfirmModalVisible] = useState(false);
   const [formValues, setFormValues] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (id) {
@@ -32,7 +30,6 @@ export default function EditarPublicidadePage() {
 
   const loadPublicidade = async () => {
     try {
-
       const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/publicidade/${id}`);
       if (response.status === 200) {
         setPublicidade(response.data);
@@ -41,22 +38,10 @@ export default function EditarPublicidadePage() {
       }
     } catch {
       console.log("Erro ao carregar publicidade");
-
     }
   };
 
   const onFinish = (values) => {
-    // Validações antes de mostrar o modal
-    if (!values.titulo || !values.titulo.trim()) {
-      message.error("O título não pode estar vazio!");
-      return;
-    }
-
-    if (!values.conteudo || !values.conteudo.trim()) {
-      message.error("O conteúdo não pode estar vazio!");
-      return;
-    }
-
     setFormValues(values);
     setIsConfirmModalVisible(true);
   };
@@ -109,35 +94,14 @@ export default function EditarPublicidadePage() {
       }
     } else {
       alert("Preencha todos os campos!");
-
     }
   };
 
   const onFinishFailed = (errorInfo) => {
     console.log("Edit Failed:", errorInfo);
-    message.error("Por favor, corrija os erros no formulário!");
   };
 
-  const handleFileListChange = (newFileList) => {
-    setFileList(newFileList);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-2">Carregando...</span>
-      </div>
-    );
-  }
-
-  if (!publicidade) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <p>Publicidade não encontrada</p>
-      </div>
-    );
-  }
+  if (!publicidade) return <div>Carregando...</div>;
 
   return (
     <>
@@ -168,7 +132,6 @@ export default function EditarPublicidadePage() {
                 <div className="w-[100%] md:h-[25vh] h-[13vh] bg-gray-200 rounded-3xl ">
                   <Image
                     src={URL.createObjectURL(fileList[0].originFileObj)}
-
                     alt="Nova imagem selecionada"
                     width={400}
                     height={320}
@@ -179,22 +142,15 @@ export default function EditarPublicidadePage() {
                 <div className="w-[100%] md:h-[25vh] h-[13vh] bg-gray-200 rounded-3xl ">
                   <Image
                     src={publicidade.url_imagem.startsWith('/') ? publicidade.url_imagem : `/images/publicidadeImages/${publicidade.url_imagem}`}
-
                     alt="Imagem atual"
                     width={400}
                     height={320}
                     className="h-full w-full object-cover rounded-3xl"
                   />
-                  <div className="absolute top-2 right-2 bg-gray-500 text-white px-2 py-1 rounded text-xs">
-                    Imagem atual
-                  </div>
                 </div>
               ) : (
-                <div className="md:h-[25vh] h-[13vh] w-[100%] bg-[#D4D4D4] md:rounded-3xl rounded-xl flex items-center justify-center text-gray-600 font-semibold md:text-xl text-sm border-2 border-dashed border-gray-400">
-                  <div className="text-center">
-                    <div>📷</div>
-                    <div className="text-sm mt-2">Selecione uma imagem</div>
-                  </div>
+                <div className="md:h-[25vh] h-[13vh] w-[100%] bg-[#D4D4D4] md:rounded-3xl rounded-xl flex items-center justify-center text-white font-semibold md:text-xl text-sm">
+                  Imagem de capa
                 </div>
               )}
               
@@ -209,9 +165,10 @@ export default function EditarPublicidadePage() {
                 <UploadField
                   name="url_imagem"
                   label="Imagem de capa"
+                  multiple={false}
                   className="!w-fit"
                   fileList={fileList}
-                  setFileList={handleFileListChange}
+                  setFileList={setFileList}
                 />
               </div>
 
@@ -225,9 +182,9 @@ export default function EditarPublicidadePage() {
 
               <div className="flex justify-end mt-4">
                 <FormButton
-                  text={isSubmitting ? "Atualizando..." : "Atualizar"}
+                  text="Publicar"
+                  onClick={() => setIsConfirmModalVisible(true)}
                   icon={<UploadOutlined />}
-                  disabled={isSubmitting}
                 />
               </div>
             </div>
