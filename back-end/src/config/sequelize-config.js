@@ -25,4 +25,4 @@ const sequelize = new Sequelize(
   }
 })();
 
-export default connection;
+export default sequelize;
